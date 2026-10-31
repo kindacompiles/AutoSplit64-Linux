@@ -1,13 +1,12 @@
 import json
 import copy
 
+from . import paths
+
 
 _config = {}
 _defaults = None
 _rollback = None
-
-_CONFIG_FILE_NAME = "config.ini"
-_DEFAULTS_FILE_NAME = "defaults.ini"
 
 
 def add_section(section):
@@ -114,7 +113,7 @@ def flush_rollback():
 def load_config():
     global _config
     try:
-        with open(_CONFIG_FILE_NAME) as file:
+        with open(paths.config_file()) as file:
             data = json.load(file)
             _config = data
     except FileNotFoundError:
@@ -123,7 +122,7 @@ def load_config():
 
 def load_defaults():
     global _defaults
-    with open(_DEFAULTS_FILE_NAME) as file:
+    with open(paths.defaults_file()) as file:
         data = json.load(file)
         _defaults = data
 
@@ -131,8 +130,9 @@ def load_defaults():
 def save_config():
     global _config
 
-    # Save config.ini file
-    with open(_CONFIG_FILE_NAME, 'w') as file:
+    # Save the user config under the XDG config directory (paths.config_file()
+    # ensures the directory exists).
+    with open(paths.config_file(), 'w') as file:
         json.dump(_config, file, indent=4)
 
     # Remove rollback

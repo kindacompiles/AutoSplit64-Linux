@@ -1,9 +1,22 @@
-from ctypes import windll
-import win32gui
-import win32ui
-import win32process
+import sys
+
 import numpy as np
 import psutil
+
+# Window capture uses the Win32 GDI API and is only available on Windows.
+# On other platforms the names are stubbed so the module still imports; the
+# capture functions below are not wired up on Linux (the OBS shared-memory and
+# V4L2 backends cover Linux capture).
+if sys.platform == "win32":
+    from ctypes import windll
+    import win32gui
+    import win32ui
+    import win32process
+else:
+    windll = None
+    win32gui = None
+    win32ui = None
+    win32process = None
 
 EXCLUSION_LIST = ["ApplicationFrameHost.exe",
                   "WinRAR.exe",
@@ -24,6 +37,11 @@ EXCLUSION_LIST = ["ApplicationFrameHost.exe",
 
 def get_visible_processes():
     """ Returns a list of processes with a valid hwnd """
+    # Window capture is Windows-only; there are no hwnd-bearing processes to
+    # enumerate on other platforms, so the capture editor simply shows none.
+    if win32gui is None:
+        return []
+
     processes = []
     for proc in psutil.process_iter():
         hwnd = 0
@@ -68,6 +86,8 @@ def capture(hwnd, client_area=True):
     https://stackoverflow.com/a/24352388
     Modified to support client area capture
     """
+    if win32gui is None:
+        raise NotImplementedError("Window capture is only supported on Windows")
     try:
         if client_area:
             # Get client area dimensions
@@ -110,6 +130,8 @@ def capture(hwnd, client_area=True):
 
 
 def get_capture_size(hwnd):
+    if win32gui is None:
+        raise NotImplementedError("Window capture is only supported on Windows")
     left, top, right, bot = win32gui.GetWindowRect(hwnd)
 
     return [right - left, bot - top]

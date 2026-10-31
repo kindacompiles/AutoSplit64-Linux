@@ -145,3 +145,23 @@ dmypy.json
 *.iml
 out
 gen
+
+### AutoSplit64 Linux port
+# Python virtualenv used by run.sh / local dev
+.venv/
+venv/
+
+# Runtime-generated user state (now lives under XDG dirs, but ignore any
+# stray local copies produced by older runs or in-tree testing)
+config.ini
+.log
+*.log
+
+# Packaging / build artifacts
+*.AppImage
+AppDir/
+build_artifacts/
+dist/
+build/
+# Compiled OBS plugin (shipped as source; built .so is not committed)
+*.so

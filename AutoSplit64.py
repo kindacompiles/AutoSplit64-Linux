@@ -5,6 +5,7 @@ import logging
 from PyQt6 import QtCore, QtWidgets, QtGui
 from as64gui.app import App
 import as64core
+from as64core import paths
 from as64core.processing import register_process, insert_global_hook, insert_global_processor_hook, ProcessorGenerator
 from as64core.route_loader import load
 from as64processes.standard import *
@@ -149,7 +150,7 @@ if __name__ == "__main__":
     logging.basicConfig(
         level=logging.WARNING,
         format='%(asctime)s:%(levelname)s:%(name)s:%(message)s',
-        filename=".log",
+        filename=str(paths.log_file()),
         filemode='a'
     )
 

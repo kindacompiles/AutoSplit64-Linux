@@ -1,50 +1,48 @@
+"""Resource path helpers.
+
+Historically these resolved paths relative to the current working directory
+(and scrubbed Windows backslashes).  The Linux port resolves bundled resources
+relative to the application root instead -- see :mod:`as64core.paths` -- so the
+app works regardless of the directory it is launched from (AppImage, .desktop
+entry, etc.).  The public function names and signatures are unchanged so the
+rest of the codebase does not need to care.
+"""
+
 import os
-import sys
 from pathlib import Path
+
+from . import paths
 
 
 def base_path(relative_path=None):
+    """Path to a bundled resource (formerly ``dirname(sys.argv[0])``)."""
     if not relative_path:
-        return os.path.dirname(sys.argv[0])
-    else:
-        return os.path.join(os.path.dirname(sys.argv[0]), relative_path).replace('\\', '/')
+        return str(paths.app_root())
+    return str(paths.app_root() / relative_path)
 
 
 def absolute_path(relative_path=None):
+    """Absolute path within the application tree (formerly the CWD)."""
     if not relative_path:
-        return str(Path().absolute()).replace('\\', '/')
-    else:
-        return os.path.join(Path().absolute(), relative_path).replace('\\', '/')
+        return str(paths.app_root())
+    return str(paths.app_root() / relative_path)
 
 
 def resource_path(relative_path):
-    """
-    Get absolute path to resource, works for dev and for PyInstaller
-
-    Credit: https://stackoverflow.com/questions/7674790/bundling-data-files-with-pyinstaller-onefile/13790741#13790741
-    """
-    # try:
-    #     # PyInstaller creates a temp folder and stores path in _MEIPASS
-    #     path = sys._MEIPASS
-    # except Exception:
-    #     path = os.path.abspath(".")
-    path = os.path.abspath(".")
-    return os.path.join(path, relative_path).replace('\\', '/')
+    """Absolute path to a bundled resource, works for source and PyInstaller."""
+    return str(paths.app_root() / relative_path)
 
 
 def abs_to_rel(p):
-    # Convert to relative path, if possible
-    rel_path = p.replace(absolute_path(), "")
-
-    # Store Path
-    if rel_path != p:
-        return rel_path[1:]
-    else:
+    """Make ``p`` relative to the application root when it lives inside it."""
+    try:
+        return str(Path(p).resolve().relative_to(paths.app_root()))
+    except (ValueError, OSError):
         return p
 
 
 def rel_to_abs(p):
-    if not os.path.isabs(p):
-        return absolute_path(p)
-    else:
+    """Resolve a (possibly relative) path against the application root."""
+    if os.path.isabs(p):
         return p
+    return str(paths.app_root() / p)

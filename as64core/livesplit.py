@@ -1,8 +1,17 @@
 import socket
 import select
-import win32file
-import win32pipe
+import sys
 import time
+
+# The named-pipe transport uses pywin32 and is Windows-only. Guard the import
+# so the module loads on Linux; the Linux timer transport is implemented in
+# Phase 2+. The TCP path (sockets) is already cross-platform.
+if sys.platform == "win32":
+    import win32file
+    import win32pipe
+else:
+    win32file = None
+    win32pipe = None
 
 from . import config
 
