@@ -15,6 +15,7 @@ class App(QtWidgets.QMainWindow):
     start = QtCore.pyqtSignal()
     stop = QtCore.pyqtSignal()
     closed = QtCore.pyqtSignal()
+    _update_available = QtCore.pyqtSignal(str)
 
     def __init__(self, parent=None):
         self.autostarter_active = False
@@ -71,8 +72,13 @@ class App(QtWidgets.QMainWindow):
         self.initialize()
         self.show()
         
+        # Run the update check off the main thread so a slow or blocked network
+        # never delays startup; the popup (if any) is marshalled back to the GUI
+        # thread via the _update_available signal.
+        self._update_available.connect(self.display_update_message)
         if config.get("general", "update_check"):
-            self.update_check()
+            import threading
+            threading.Thread(target=self.update_check, daemon=True).start()
         
         # Handle splash screen closure
         try:
@@ -411,17 +417,19 @@ class App(QtWidgets.QMainWindow):
         return [int(x) for x in version.split('.')]
 
     def update_check(self):
-
+        # Runs on a background thread (see __init__). Must not touch Qt widgets
+        # directly; emit _update_available to show any popup on the GUI thread.
         try:
-            response = requests.get(f"https://api.github.com/repos/{constants.GITHUB_REPO}/releases/latest")
+            response = requests.get(
+                f"https://api.github.com/repos/{constants.GITHUB_REPO}/releases/latest",
+                timeout=5,
+            )
             response.raise_for_status()
             data = json.loads(response.text)
             latest_version = data["tag_name"]
 
             if self.parse_version(latest_version) > self.parse_version(constants.VERSION):
-                self.display_update_message(latest_version)
-            else:
-                return None
+                self._update_available.emit(latest_version)
         except Exception as e:
             logging.error(f"Update check failed: {str(e)}")
             return None
