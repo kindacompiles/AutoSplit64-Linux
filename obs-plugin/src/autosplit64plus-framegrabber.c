@@ -66,6 +66,7 @@ static const char *filter_name(void *unused)
  */
 static void *filter_create(obs_data_t *settings, obs_source_t *source)
 {
+	UNUSED_PARAMETER(settings);
 	struct filter_data *filter = bzalloc(sizeof(struct filter_data));
 	if (!filter) {
 		blog(LOG_ERROR, "Failed to allocate filter data");
@@ -105,10 +106,10 @@ static void *filter_create(obs_data_t *settings, obs_source_t *source)
  * @return Pointer to the created properties
  */
 #ifdef _WIN32
-#define AS64_OPEN_URL(url) system("start " url)
+#define AS64_OPEN_URL(url) do { if (system("start " url)) { } } while (0)
 #else
 // "start" is a Windows shell builtin; on Linux open the default browser.
-#define AS64_OPEN_URL(url) system("xdg-open '" url "' >/dev/null 2>&1 &")
+#define AS64_OPEN_URL(url) do { if (system("xdg-open '" url "' >/dev/null 2>&1 &")) { } } while (0)
 #endif
 
 static bool github_button_clicked(obs_properties_t *props, obs_property_t *property, void *data)
