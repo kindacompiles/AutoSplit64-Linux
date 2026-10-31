@@ -3,6 +3,7 @@ import sys
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 import cv2
+import numpy as np
 
 from as64core import capture_shmem, capture_v4l2, capture_window, config
 from as64core import resource_utils
@@ -195,6 +196,26 @@ class CaptureEditor(QtWidgets.QDialog):
         finally:
             cap.close()
 
+    def _write_placeholder(self, *lines):
+        """Render centered gray text on a dark 640x400 canvas to PREVIEW_PATH.
+
+        Used instead of the baked obs_error.png so the message matches the
+        selected capture method (e.g. a V4L2 card failure must not claim the
+        OBS plugin is missing).
+        """
+        img = np.full((400, 640, 3), 40, dtype=np.uint8)
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        scale = 0.7
+        thickness = 1
+        line_h = 36
+        y0 = (400 - len(lines) * line_h) // 2 + line_h // 2
+        for i, text in enumerate(lines):
+            (tw, _th), _ = cv2.getTextSize(text, font, scale, thickness)
+            x = max(0, (640 - tw) // 2)
+            y = y0 + i * line_h
+            cv2.putText(img, text, (x, y), font, scale, (200, 200, 200), thickness, cv2.LINE_AA)
+        cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), img)
+
     def _on_capture_clicked(self):
         # The "Capture Screen" button is the only path that opens a V4L2 device
         # for a preview (an explicit user action), so a possible block does not
@@ -329,20 +350,31 @@ class CaptureEditor(QtWidgets.QDialog):
                     preview_image = self.shmem_capture.capture()
                     cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
                 except:
-                    # If capture fails, display a placeholder image
+                    # OBS frame-grabber shared memory not available: the baked
+                    # obs_error.png explains the plugin is missing/not added.
                     cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
-
-                    pass
-            elif not _IS_WIN and self._v4l2_grab_requested:
-                # Linux V4L2 capture-card preview. Only on an explicit capture
-                # request (not on toggle/device change), because opening a busy
-                # device can block and freeze the GUI thread.
-                self._v4l2_grab_requested = False
-                preview_image = self._grab_v4l2_preview()
-                if preview_image is not None:
-                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+            elif not _IS_WIN:
+                # Linux V4L2 capture-card preview. Opening a device is only done
+                # on an explicit "Capture Screen" click (not on toggle/device
+                # change), because opening a busy device can block and freeze
+                # the GUI thread.
+                if self._v4l2_grab_requested:
+                    self._v4l2_grab_requested = False
+                    preview_image = self._grab_v4l2_preview()
+                    if preview_image is not None:
+                        cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+                    else:
+                        device = self.v4l2_combo.currentText() or "(no device)"
+                        self._write_placeholder(
+                            "Capture card not found or in use.",
+                            f"{device}",
+                            "Is OBS using the device?",
+                        )
                 else:
-                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
+                    self._write_placeholder(
+                        "Capture-card mode.",
+                        'Click "Capture Screen" to preview.',
+                    )
             else:
                 # Update screen capture
                 selected_hwnd = 0
