@@ -193,7 +193,10 @@ class Base(Thread):
     def validity_check(self):
 
         if not livesplit.check_connection(self._ls_socket):
-            self._error_occurred("Could not connect to LiveSplit.\nIs LiveSplit running?\nIf Connection mode is TCP, ensure the LiveSplit Server is started.")
+            self._error_occurred(
+                livesplit.connection_error()
+                or "Could not connect to LiveSplit.\nIs LiveSplit running?\nIf Connection mode is TCP, ensure the LiveSplit Server is started."
+            )
             return False
         
         try:
@@ -254,10 +257,13 @@ class Base(Thread):
                 try:
                     self._game_capture.capture()
 
-                    ls_index = max(livesplit.split_index(self._ls_socket), 0)
-                    
-                    if ls_index != self.split_index():
-                        self.set_split_index(ls_index)
+                    raw_index = livesplit.split_index(self._ls_socket)
+                    # OBS WebSocket timer returns None (no split index to read);
+                    # only resync when the timer can report one.
+                    if raw_index is not None:
+                        ls_index = max(raw_index, 0)
+                        if ls_index != self.split_index():
+                            self.set_split_index(ls_index)
 
                     self.analyze_fade_status()
                     if self._make_predictions:

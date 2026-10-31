@@ -14,11 +14,47 @@ else:
     win32pipe = None
 
 from . import config
+from .timer_obsws import OBSWebSocketTimer
 
-# Connect to LiveSplit and return socket
+# Last connection error message (set by connect() so callers can show a clear
+# reason instead of a generic one).
+_last_connection_error = None
+
+
+def connection_error():
+    return _last_connection_error
+
+
+# Connect to the timer and return a connection handle (TCP socket, Windows pipe
+# handle, or an OBSWebSocketTimer). Returns False on failure.
 def connect() -> object:
+    global _last_connection_error
+    _last_connection_error = None
+
+    method = config.get("connection", "timer_method")
+
+    if method == "obs_websocket":
+        timer = OBSWebSocketTimer(
+            config.get("connection", "obs_ws_host"),
+            config.get("connection", "obs_ws_port"),
+            config.get("connection", "obs_ws_password"),
+        )
+        try:
+            timer.connect()
+            return timer
+        except Exception as e:
+            _last_connection_error = str(e)
+            return False
+
+    return _connect_livesplit(force_tcp=(method == "livesplit_tcp"))
+
+
+# Connect to the classic LiveSplit Server (TCP) or LiveSplit named pipe.
+def _connect_livesplit(force_tcp=False) -> object:
     # Get connection type from config
     ls_connection_type = config.get("connection", "ls_connection_type")
+    if force_tcp:
+        ls_connection_type = 1
 
     # Check if connection type is named pipe (0 indicates named pipe)
     if ls_connection_type == 0:
@@ -50,13 +86,18 @@ def disconnect(ls_socket) -> None:
     # Check if connection even exists
     if ls_socket is False:
         return
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.disconnect()
+        return
     ls_socket.close()
 
 
 def check_connection(ls_socket) -> bool:
     # Check if connection has been established
-    if (ls_socket == False):
+    if (ls_socket is False):
         return False
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        return ls_socket.connected()
     # Check if communication is possible and response is received
     if split_index(ls_socket) is False:
         return False
@@ -79,24 +120,42 @@ def send(ls_socket, command) -> None:
             raise Exception("LiveSplit connection lost")
 
 def split(ls_socket) -> None:
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.split()
+        return
     send(ls_socket, "startorsplit\r\n")
 
 
 def reset(ls_socket) -> None:
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.reset()
+        return
     send(ls_socket, "reset\r\n")
 
 def restart(ls_socket) -> None:
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.restart()
+        return
     send(ls_socket, "reset\r\nstarttimer\r\n")
 
 def skip(ls_socket) -> None:
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.skip()
+        return
     send(ls_socket, "skipsplit\r\n")
 
 
 def undo(ls_socket) -> None:
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.undo()
+        return
     send(ls_socket, "unsplit\r\n")
 
 
 def split_index(ls_socket):
+    # The OBS WebSocket hotkey path is one-way; no split index is available.
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        return None
     # Check if connection type is pipe or socket
     # If it is a socket:
     if isinstance(ls_socket, socket.socket):

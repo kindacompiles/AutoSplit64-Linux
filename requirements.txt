@@ -10,3 +10,5 @@ opencv-python-headless==4.10.0.84
 psutil==6.1.1
 onnxruntime==1.20.1
 requests==2.32.3
+# OBS WebSocket client for the OBS LiveSplit One timer (timer_method: obs_websocket).
+obsws-python==1.8.1

@@ -657,6 +657,16 @@ class ConnectionMenu(BaseMenu):
         self.menu_layout = QtWidgets.QGridLayout()
 
         # Widgets
+        self.timer_method_lb = QtWidgets.QLabel("Timer Method:")
+        self.timer_method_combo = QtWidgets.QComboBox()
+        self.obs_host_lb = QtWidgets.QLabel("OBS WebSocket Host:")
+        self.obs_host_le = QtWidgets.QLineEdit("")
+        self.obs_port_lb = QtWidgets.QLabel("OBS WebSocket Port:")
+        self.obs_port_le = QtWidgets.QLineEdit("")
+        self.obs_pw_lb = QtWidgets.QLabel("OBS WebSocket Password:")
+        self.obs_pw_le = QtWidgets.QLineEdit("")
+        self.obs_pw_le.setEchoMode(QtWidgets.QLineEdit.EchoMode.Password)
+
         self.ls_mode_lb = QtWidgets.QLabel("Connection Mode:")
         self.ls_mode_combo = QtWidgets.QComboBox()
         self.host_lb = QtWidgets.QLabel("LiveSplit TCP Host:")
@@ -665,6 +675,11 @@ class ConnectionMenu(BaseMenu):
         self.port_le = QtWidgets.QLineEdit("")
         self.ls_pipe_host_lb = QtWidgets.QLabel("LiveSplit Pipe Host:")
         self.ls_pipe_host_le = QtWidgets.QLineEdit("")
+
+        self.test_btn = QtWidgets.QPushButton("Test Connection")
+
+        # timer_method combo index -> config value
+        self._timer_methods = ["obs_websocket", "livesplit_tcp"]
 
         self.int_validator = QtGui.QIntValidator()
 
@@ -675,70 +690,135 @@ class ConnectionMenu(BaseMenu):
         self.set_menu_layout(self.menu_layout)
 
         # Configure Widgets
-        self.host_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.port_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.ls_mode_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.ls_pipe_host_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        for lb in (self.timer_method_lb, self.obs_host_lb, self.obs_port_lb, self.obs_pw_lb,
+                   self.host_lb, self.port_lb, self.ls_mode_lb, self.ls_pipe_host_lb):
+            lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
 
-        self.host_le.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.port_le.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.ls_pipe_host_le.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        for le in (self.obs_host_le, self.obs_port_le, self.obs_pw_le,
+                   self.host_le, self.port_le, self.ls_pipe_host_le):
+            le.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            le.setMaximumWidth(150)
 
-        self.host_le.setMaximumWidth(150)
-        self.port_le.setMaximumWidth(150)
-        self.ls_pipe_host_le.setMaximumWidth(150)
+        self.timer_method_combo.setMaximumWidth(220)
+        self.timer_method_combo.addItems(["OBS WebSocket (LiveSplit One)", "LiveSplit Server (TCP)"])
+        self.timer_method_combo.currentIndexChanged.connect(self._toggle_method_fields)
 
         self.ls_mode_combo.setMaximumWidth(120)
         self.ls_mode_combo.addItems(["Named Pipe", "TCP"])
 
         # Add Widgets
+        self.menu_layout.addWidget(self.timer_method_lb, 0, 0)
+        self.menu_layout.addWidget(self.timer_method_combo, 0, 1)
 
-        
-        self.menu_layout.addWidget(self.ls_mode_lb, 1, 0)
-        self.menu_layout.addWidget(self.ls_mode_combo, 1, 1)
+        self.menu_layout.addWidget(HLine(), 1, 0, 1, 3)
 
+        # OBS WebSocket settings
         self.menu_layout.addItem(
-            QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Minimum), 2, 0)
+            QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum), 2, 2)
+        self.menu_layout.addWidget(self.obs_host_lb, 2, 0)
+        self.menu_layout.addWidget(self.obs_host_le, 2, 1)
+        self.menu_layout.addWidget(self.obs_port_lb, 3, 0)
+        self.menu_layout.addWidget(self.obs_port_le, 3, 1)
+        self.menu_layout.addWidget(self.obs_pw_lb, 4, 0)
+        self.menu_layout.addWidget(self.obs_pw_le, 4, 1)
 
-        self.menu_layout.addWidget(HLine(), 3, 0, 1, 3)
+        self.menu_layout.addWidget(HLine(), 5, 0, 1, 3)
 
-        self.menu_layout.addItem(
-            QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Minimum), 4, 0)
+        # Legacy LiveSplit Server (TCP) / Named Pipe settings
+        self.menu_layout.addWidget(self.ls_mode_lb, 6, 0)
+        self.menu_layout.addWidget(self.ls_mode_combo, 6, 1)
+        self.menu_layout.addWidget(self.host_lb, 7, 0)
+        self.menu_layout.addWidget(self.host_le, 7, 1)
+        self.menu_layout.addWidget(self.port_lb, 8, 0)
+        self.menu_layout.addWidget(self.port_le, 8, 1)
+        self.menu_layout.addWidget(self.ls_pipe_host_lb, 9, 0)
+        self.menu_layout.addWidget(self.ls_pipe_host_le, 9, 1)
 
-        self.menu_layout.addItem(
-            QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum), 5, 2)
-        self.menu_layout.addWidget(self.host_lb, 5, 0)
-        self.menu_layout.addWidget(self.host_le, 5, 1)
-        self.menu_layout.addWidget(self.port_lb, 6, 0)
-        self.menu_layout.addWidget(self.port_le, 6, 1)
-
-        self.menu_layout.addItem(
-            QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Minimum), 7, 0)
-        
-        self.menu_layout.addWidget(HLine(), 8, 0, 1, 3)
-
-        self.menu_layout.addItem(
-            QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Minimum), 9, 0)
-        
-        self.menu_layout.addWidget(self.ls_pipe_host_lb, 10, 0)
-        self.menu_layout.addWidget(self.ls_pipe_host_le, 10, 1)        
-
+        self.menu_layout.addWidget(self.test_btn, 10, 1)
+        self.test_btn.clicked.connect(self._test_connection)
 
         self.menu_layout.addItem(QtWidgets.QSpacerItem(20, 20, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding), 15, 0)
 
         self.port_le.setValidator(self.int_validator)
+        self.obs_port_le.setValidator(self.int_validator)
 
         self.load_preferences()
 
+    def _test_connection(self):
+        """Validate the timer connection using the fields as currently entered.
+
+        Does not mutate config; constructs a throwaway connection and reports
+        success (including whether a LiveSplit One source was found) or the
+        specific failure reason.
+        """
+        import socket as _socket
+        from as64core.timer_obsws import OBSWebSocketTimer
+
+        method = self._timer_methods[self.timer_method_combo.currentIndex()]
+        try:
+            if method == "obs_websocket":
+                timer = OBSWebSocketTimer(
+                    self.obs_host_le.text() or "localhost",
+                    int(self.obs_port_le.text() or 4455),
+                    self.obs_pw_le.text(),
+                )
+                timer.connect()
+                name = timer.livesplit_source_name()
+                timer.disconnect()
+                suffix = f" ('{name}')" if name else ""
+                self._show_result(True, f"Connected to OBS and found a LiveSplit One source{suffix}.")
+            else:
+                s = _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM)
+                s.settimeout(2)
+                s.connect((self.host_le.text() or "localhost", int(self.port_le.text() or 16834)))
+                s.close()
+                self._show_result(True, "Connected to the LiveSplit Server over TCP.")
+        except Exception as e:
+            self._show_result(False, str(e))
+
+    def _show_result(self, ok, message):
+        box = QtWidgets.QMessageBox(self)
+        box.setIcon(QtWidgets.QMessageBox.Icon.Information if ok else QtWidgets.QMessageBox.Icon.Warning)
+        box.setWindowTitle("Connection OK" if ok else "Connection failed")
+        box.setText(message)
+        box.exec()
+
+    def _toggle_method_fields(self):
+        """Enable only the fields relevant to the selected timer method."""
+        obs = self.timer_method_combo.currentIndex() == 0
+        for w in (self.obs_host_lb, self.obs_host_le, self.obs_port_lb, self.obs_port_le,
+                  self.obs_pw_lb, self.obs_pw_le):
+            w.setEnabled(obs)
+        for w in (self.ls_mode_lb, self.ls_mode_combo, self.host_lb, self.host_le,
+                  self.port_lb, self.port_le, self.ls_pipe_host_lb, self.ls_pipe_host_le):
+            w.setEnabled(not obs)
+
     def load_preferences(self):
+        method = config.get('connection', 'timer_method')
+        try:
+            self.timer_method_combo.setCurrentIndex(self._timer_methods.index(method))
+        except (ValueError, TypeError):
+            self.timer_method_combo.setCurrentIndex(0)
+
+        self.obs_host_le.setText(str(config.get('connection', 'obs_ws_host')))
+        self.obs_port_le.setText(str(config.get('connection', 'obs_ws_port')))
+        self.obs_pw_le.setText(str(config.get('connection', 'obs_ws_password')))
+
         self.host_le.setText(str(config.get('connection', 'ls_host')))
         self.port_le.setText(str(config.get('connection', 'ls_port')))
         self.ls_pipe_host_le.setText(str(config.get('connection', 'ls_pipe_host')))
         self.ls_mode_combo.setCurrentIndex(config.get('connection', 'ls_connection_type'))
 
+        self._toggle_method_fields()
+
     def update_preferences(self):
+        config.set_key('connection', 'timer_method', self._timer_methods[self.timer_method_combo.currentIndex()])
+        config.set_key('connection', 'obs_ws_host', self.obs_host_le.text())
+        config.set_key('connection', 'obs_ws_port', int(self.obs_port_le.text() or 4455))
+        config.set_key('connection', 'obs_ws_password', self.obs_pw_le.text())
+
         config.set_key('connection', 'ls_host', self.host_le.text())
-        config.set_key('connection', 'ls_port', int(self.port_le.text()))
+        config.set_key('connection', 'ls_port', int(self.port_le.text() or 16834))
         config.set_key('connection', 'ls_pipe_host', self.ls_pipe_host_le.text())
         config.set_key("connection", "ls_connection_type", self.ls_mode_combo.currentIndex())
 
