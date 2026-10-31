@@ -59,8 +59,21 @@ class Base(Thread):
                 # TODO: What is this doing? Why are we ever passing the path into the version?
                 version = config.get("route", "path")
 
-        # Initialize the Game Capture
-        self._game_capture = GameCapture(config.get("game", "use_obs"), config.get("game", "vc_fix"), config.get("game", "process_name"), config.get("game", "game_region"), version)
+        # Initialize the Game Capture.
+        # Resolve the capture method, falling back to the legacy "use_obs"
+        # boolean for configs written before "capture_method" existed.
+        game_cfg = config.get("game")
+        capture_method = game_cfg.get("capture_method")
+        if not capture_method:
+            capture_method = "obs" if game_cfg.get("use_obs", True) else "window"
+        self._game_capture = GameCapture(
+            capture_method,
+            config.get("game", "vc_fix"),
+            config.get("game", "process_name"),
+            config.get("game", "game_region"),
+            version,
+            config.get("game", "v4l2_device"),
+        )
 
         # Initialise Prediction Model
         if config.get("model", "legacy"):

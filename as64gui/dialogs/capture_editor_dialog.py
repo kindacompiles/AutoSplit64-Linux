@@ -1,9 +1,13 @@
+import sys
+
 from PyQt6 import QtCore, QtGui, QtWidgets
 
 import cv2
 
-from as64core import capture_shmem, capture_window, config
+from as64core import capture_shmem, capture_v4l2, capture_window, config
 from as64core import resource_utils
+
+_IS_WIN = sys.platform == "win32"
 from ..widgets import HLine
 from ..graphics import RectangleSelector
 from ..constants import (
@@ -43,6 +47,10 @@ class CaptureEditor(QtWidgets.QDialog):
         self.use_obs_cb = QtWidgets.QCheckBox("Use OBS Plugin")
         self.process_lb = QtWidgets.QLabel("Process:")
         self.process_combo = QtWidgets.QComboBox()
+        # V4L2 capture-card selector (Linux: shown when OBS is unchecked).
+        self.v4l2_lb = QtWidgets.QLabel("Capture Device:")
+        self.v4l2_combo = QtWidgets.QComboBox()
+        self.v4l2_refresh_btn = QtWidgets.QPushButton("Refresh Devices")
         self.capture_btn = QtWidgets.QPushButton("Capture Screen")
         self.auto_region_btn = QtWidgets.QPushButton("Auto Detect Region")
         self.vc_fix_cb = QtWidgets.QCheckBox("VC fix (experimental)")
@@ -84,18 +92,32 @@ class CaptureEditor(QtWidgets.QDialog):
         self.process_combo.setSizePolicy(QtWidgets.QSizePolicy.Policy.MinimumExpanding, QtWidgets.QSizePolicy.Policy.Minimum)
 
         self._refresh_process_list()
+        self._refresh_v4l2_list()
 
         self.left_layout.addWidget(self.use_obs_cb, 0, 0, 1, 2)
         self.left_layout.addWidget(self.process_lb, 1, 0)
         self.left_layout.addWidget(self.process_combo, 1, 1)
-        self.left_layout.addWidget(self.capture_btn, 2, 0, 1, 2)
-        self.left_layout.addWidget(self.auto_region_btn, 3, 0, 1, 2)
-        self.left_layout.addWidget(self.vc_fix_cb, 4, 0, 1, 2)
+        self.left_layout.addWidget(self.v4l2_lb, 2, 0)
+        self.left_layout.addWidget(self.v4l2_combo, 2, 1)
+        self.left_layout.addWidget(self.v4l2_refresh_btn, 3, 0, 1, 2)
+        self.left_layout.addWidget(self.capture_btn, 4, 0, 1, 2)
+        self.left_layout.addWidget(self.auto_region_btn, 5, 0, 1, 2)
+        self.left_layout.addWidget(self.vc_fix_cb, 6, 0, 1, 2)
 
-        self.left_layout.addItem(QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Policy.MinimumExpanding, QtWidgets.QSizePolicy.Policy.Expanding), 5, 0)
+        self.left_layout.addItem(QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Policy.MinimumExpanding, QtWidgets.QSizePolicy.Policy.Expanding), 7, 0)
+
+        # On Windows, "not OBS" means window capture; on Linux it means V4L2.
+        # Hide the irrelevant selector for the platform.
+        self.process_lb.setVisible(_IS_WIN)
+        self.process_combo.setVisible(_IS_WIN)
+        self.v4l2_lb.setVisible(not _IS_WIN)
+        self.v4l2_combo.setVisible(not _IS_WIN)
+        self.v4l2_refresh_btn.setVisible(not _IS_WIN)
 
         # Add connection for checkbox
         self.use_obs_cb.stateChanged.connect(self.toggle_capture_method)
+        self.v4l2_refresh_btn.clicked.connect(self._refresh_v4l2_list)
+        self.v4l2_combo.currentIndexChanged.connect(self.refresh_graphics_scene)
 
         # Right Widget
         self.apply_btn.setDefault(False)
@@ -125,8 +147,13 @@ class CaptureEditor(QtWidgets.QDialog):
 
     def toggle_capture_method(self, state):
         use_obs = bool(state)
-        self.process_lb.setVisible(not use_obs)
-        self.process_combo.setVisible(not use_obs)
+        # Windows: show the window/process picker when not using OBS.
+        self.process_lb.setVisible(_IS_WIN and not use_obs)
+        self.process_combo.setVisible(_IS_WIN and not use_obs)
+        # Linux: show the V4L2 device picker when not using OBS.
+        self.v4l2_lb.setVisible(not _IS_WIN and not use_obs)
+        self.v4l2_combo.setVisible(not _IS_WIN and not use_obs)
+        self.v4l2_refresh_btn.setVisible(not _IS_WIN and not use_obs)
 
         # Refresh the view with new capture method
         self.refresh_graphics_scene()
@@ -135,6 +162,27 @@ class CaptureEditor(QtWidgets.QDialog):
         self.process_combo.clear()
         self._process_list = capture_window.get_visible_processes()
         self.process_combo.addItems([proc[0].name() for proc in self._process_list])
+
+    def _refresh_v4l2_list(self):
+        current = self.v4l2_combo.currentText()
+        self.v4l2_combo.clear()
+        devices = capture_v4l2.V4L2Capture.list_devices()
+        self.v4l2_combo.addItems(devices)
+        if current in devices:
+            self.v4l2_combo.setCurrentIndex(devices.index(current))
+
+    def _grab_v4l2_preview(self):
+        """Grab a single BGR frame from the selected V4L2 device, or None."""
+        device = self.v4l2_combo.currentText()
+        if not device:
+            return None
+        cap = capture_v4l2.V4L2Capture(device)
+        try:
+            return cap.capture()
+        except Exception:
+            return None
+        finally:
+            cap.close()
 
     def show(self):
         # Load game_region from preferences
@@ -152,11 +200,23 @@ class CaptureEditor(QtWidgets.QDialog):
             if self._process_list[i][0].name() == p_name:
                 self.process_combo.setCurrentIndex(i)
 
-        # Load use_obs preference
-        use_obs = config.get("game", "use_obs")
+        # Load capture-method preference. Prefer the explicit "capture_method"
+        # key, falling back to the legacy "use_obs" boolean.
+        game_cfg = config.get("game")
+        method = game_cfg.get("capture_method")
+        if not method:
+            method = "obs" if game_cfg.get("use_obs", True) else ("window" if _IS_WIN else "v4l2")
+        use_obs = method == "obs"
         self.use_obs_cb.setChecked(use_obs)
+
+        self._refresh_v4l2_list()
+        v4l2_device = config.get("game", "v4l2_device")
+        idx = self.v4l2_combo.findText(v4l2_device)
+        if idx >= 0:
+            self.v4l2_combo.setCurrentIndex(idx)
+
         self.toggle_capture_method(use_obs)
-        
+
         vc_fix = config.get("game", "vc_fix")
         self.vc_fix_cb.setChecked(vc_fix)
 
@@ -175,14 +235,30 @@ class CaptureEditor(QtWidgets.QDialog):
         #         return
 
         # Config
-        config.set_key("game", "use_obs", self.use_obs_cb.isChecked())
+        use_obs = self.use_obs_cb.isChecked()
+        if use_obs:
+            capture_method = "obs"
+        elif _IS_WIN:
+            capture_method = "window"
+        else:
+            capture_method = "v4l2"
+
+        config.set_key("game", "capture_method", capture_method)
+        config.set_key("game", "use_obs", use_obs)  # kept for backward compatibility
         config.set_key("game", "game_region", self.game_region_panel.get_data())
-        if not self.use_obs_cb.isChecked():
+        if capture_method == "window":
             config.set_key("game", "process_name", self.process_combo.currentText())
+        elif capture_method == "v4l2":
+            config.set_key("game", "v4l2_device", self.v4l2_combo.currentText())
 
         try:
-            if self.use_obs_cb.isChecked():
+            if capture_method == "obs":
                 config.set_key("game", "capture_size", self.shmem_capture.get_capture_size())
+            elif capture_method == "v4l2":
+                preview = self._grab_v4l2_preview()
+                if preview is not None:
+                    h, w = preview.shape[:2]
+                    config.set_key("game", "capture_size", [int(w), int(h)])
             else:
                 config.set_key("game", "capture_size", capture_window.get_capture_size(self._process_list[self.process_combo.currentIndex()][1]))
         except:
@@ -230,9 +306,16 @@ class CaptureEditor(QtWidgets.QDialog):
                 cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
             except:
                 # If capture fails, display a placeholder image
-                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))                
-                
+                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
+
                 pass
+        elif not _IS_WIN:
+            # Linux V4L2 capture-card preview
+            preview_image = self._grab_v4l2_preview()
+            if preview_image is not None:
+                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+            else:
+                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
         else:
             # Update screen capture
             selected_hwnd = 0
@@ -304,12 +387,15 @@ class CaptureEditor(QtWidgets.QDialog):
 
     def auto_detect_region(self):
         try:
+            preview_image = None
             # Check capture method
             if self.use_obs_cb.isChecked():
                 try:
                     preview_image = self.shmem_capture.capture()
                 except:
                     pass
+            elif not _IS_WIN:
+                preview_image = self._grab_v4l2_preview()
             else:
                 selected_hwnd = 0
                 try:

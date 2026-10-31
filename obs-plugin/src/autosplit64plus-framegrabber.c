@@ -7,6 +7,14 @@
 #include <obs-module.h>
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <stdlib.h>
 #endif
 #include "constants.h"
 
@@ -22,8 +30,13 @@ struct filter_data {
 	uint32_t width;          // Current frame width
 	uint32_t height;         // Current frame height
 	uint8_t *image_data;     // Buffer for BGR pixel data
+#ifdef _WIN32
 	HANDLE shmem;            // Windows shared memory handle
-	LPCTSTR pBuf;            // Pointer to the mapped view of the shared memory
+#else
+	int shmem_fd;            // POSIX shared memory file descriptor (-1 when closed)
+	size_t shmem_size;       // Size of the current mapping (16-byte header + pixels)
+#endif
+	uint8_t *pBuf;           // Pointer to the mapped view of the shared memory
 	uint32_t frame_counter;  // Frame counter for synchronization
 	bool shmem_valid;        // Track if shared memory is valid
 	bool is_valid;           // Track if this is a valid instance
@@ -77,6 +90,10 @@ static void *filter_create(obs_data_t *settings, obs_source_t *source)
 
 	filter->frame_counter = 0;
 	filter->shmem_valid = false;
+#ifndef _WIN32
+	// bzalloc zeroed the struct, but 0 is a valid fd (stdin); use -1 for "none".
+	filter->shmem_fd = -1;
+#endif
 
 	return filter;
 }
@@ -87,15 +104,28 @@ static void *filter_create(obs_data_t *settings, obs_source_t *source)
  * @param data Pointer to the filter data
  * @return Pointer to the created properties
  */
+#ifdef _WIN32
+#define AS64_OPEN_URL(url) system("start " url)
+#else
+// "start" is a Windows shell builtin; on Linux open the default browser.
+#define AS64_OPEN_URL(url) system("xdg-open '" url "' >/dev/null 2>&1 &")
+#endif
+
 static bool github_button_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
-	system("start " GITHUB_URL);
+	UNUSED_PARAMETER(props);
+	UNUSED_PARAMETER(property);
+	UNUSED_PARAMETER(data);
+	AS64_OPEN_URL(GITHUB_URL);
 	return false;
 }
 
 static bool discord_button_clicked(obs_properties_t *props, obs_property_t *property, void *data)
 {
-	system("start " DISCORD_URL);
+	UNUSED_PARAMETER(props);
+	UNUSED_PARAMETER(property);
+	UNUSED_PARAMETER(data);
+	AS64_OPEN_URL(DISCORD_URL);
 	return false;
 }
 
@@ -142,14 +172,17 @@ static obs_properties_t *filter_properties(void *data)
  */
 static bool open_shmem(struct filter_data *filter, uint32_t width, uint32_t height)
 {
-	if (filter->shmem && filter->shmem_valid) {
+	if (filter->shmem_valid && filter->pBuf) {
 		// Already open, no need to recreate
 		return true;
 	}
-	filter->shmem = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, 16 + width * height * 4,
-					  TEXT("as64_grabber"));
+
+	const size_t size = 16 + (size_t)width * height * 4;
+
+#ifdef _WIN32
+	filter->shmem = CreateFileMapping(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, (DWORD)size, AS64_SHMEM_NAME);
 	if (filter->shmem) {
-		filter->pBuf = MapViewOfFile(filter->shmem, FILE_MAP_ALL_ACCESS, 0, 0, 16 + width * height * 4);
+		filter->pBuf = MapViewOfFile(filter->shmem, FILE_MAP_ALL_ACCESS, 0, 0, size);
 		if (filter->pBuf) {
 			filter->shmem_valid = true;
 			blog(LOG_INFO, "Opened shared memory connection");
@@ -163,6 +196,39 @@ static bool open_shmem(struct filter_data *filter, uint32_t width, uint32_t heig
 		blog(LOG_ERROR, "Failed to create shared memory");
 	}
 	return false;
+#else
+	// Create (or reopen) the POSIX segment. Unlink any stale segment first so a
+	// previous crash can't leave us attached to an orphaned, wrong-sized object.
+	shm_unlink(AS64_SHMEM_NAME);
+
+	int fd = shm_open(AS64_SHMEM_NAME, O_CREAT | O_RDWR, 0666);
+	if (fd == -1) {
+		blog(LOG_ERROR, "Failed to create shared memory '%s': %s", AS64_SHMEM_NAME, strerror(errno));
+		return false;
+	}
+
+	if (ftruncate(fd, (off_t)size) == -1) {
+		blog(LOG_ERROR, "Failed to size shared memory: %s", strerror(errno));
+		close(fd);
+		shm_unlink(AS64_SHMEM_NAME);
+		return false;
+	}
+
+	void *p = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+	if (p == MAP_FAILED) {
+		blog(LOG_ERROR, "Failed to map shared memory: %s", strerror(errno));
+		close(fd);
+		shm_unlink(AS64_SHMEM_NAME);
+		return false;
+	}
+
+	filter->shmem_fd = fd;
+	filter->pBuf = (uint8_t *)p;
+	filter->shmem_size = size;
+	filter->shmem_valid = true;
+	blog(LOG_INFO, "Opened shared memory connection (%zu bytes)", size);
+	return true;
+#endif
 }
 
 static bool close_shmem(struct filter_data *filter)
@@ -170,16 +236,22 @@ static bool close_shmem(struct filter_data *filter)
 	if (filter->pBuf) {
 		// Signal to readers that we're closing by setting dimensions to -1
 		uint32_t *header = (uint32_t *)filter->pBuf;
-		header[0] = -1;
-		header[1] = -1;
-		header[2] = -1;
+		header[0] = 0xFFFFFFFFu;
+		header[1] = 0xFFFFFFFFu;
+		header[2] = 0xFFFFFFFFu;
 		header[3] = 0;
 
+#ifdef _WIN32
 		FlushViewOfFile(filter->pBuf, 16);
 		UnmapViewOfFile(filter->pBuf);
+#else
+		msync(filter->pBuf, 16, MS_SYNC);
+		munmap(filter->pBuf, filter->shmem_size);
+#endif
 		filter->pBuf = NULL;
 	}
 
+#ifdef _WIN32
 	if (filter->shmem) {
 		if (CloseHandle(filter->shmem)) {
 			blog(LOG_INFO, "Closed the shared memory");
@@ -188,6 +260,19 @@ static bool close_shmem(struct filter_data *filter)
 		}
 		filter->shmem = NULL;
 	}
+#else
+	if (filter->shmem_fd != -1) {
+		close(filter->shmem_fd);
+		filter->shmem_fd = -1;
+	}
+	// Remove the name from /dev/shm so no stale segment is left behind. This is
+	// the fix for the known Linux-fork bug where the segment lingered after the
+	// filter was removed and broke the next init.
+	shm_unlink(AS64_SHMEM_NAME);
+	filter->shmem_size = 0;
+	blog(LOG_INFO, "Closed the shared memory");
+#endif
+
 	filter->shmem_valid = false;
 	return true;
 }

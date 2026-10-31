@@ -1,4 +1,5 @@
 from . import capture_shmem
+from . import capture_v4l2
 from . import capture_window
 from .image_utils import enhance_contrast
 import numpy as np
@@ -30,19 +31,28 @@ from .constants import (
 
 
 class GameCapture(object):
-    def __init__(self, use_obs, vc_fix, process_name, game_region, version):
-        # Initialize GameCapture
-        self._use_obs = use_obs
+    def __init__(self, capture_method, vc_fix, process_name, game_region, version, v4l2_device="/dev/video0"):
+        # Initialize GameCapture.
+        #
+        # capture_method selects the frame source:
+        #   "obs"    -> OBS frame-grabber plugin via POSIX/Win32 shared memory
+        #   "v4l2"   -> direct capture card through OpenCV V4L2 (Linux only)
+        #   "window" -> legacy Windows window capture (Win32 only)
+        self._capture_method = capture_method
         self._process_name = process_name
         self._vc_fix = vc_fix
-        
-        if self._use_obs:
-        # Initialize SharedMemoryCapture
+
+        self._shmem = None
+        self._v4l2 = None
+        self._hwnd = 0
+
+        if capture_method == "obs":
             self._shmem = capture_shmem.SharedMemoryCapture()
-        else:
-            self._hwnd: int = capture_window.get_hwnd_from_list(process_name, capture_window.get_visible_processes())
-        
-        
+        elif capture_method == "v4l2":
+            self._v4l2 = capture_v4l2.V4L2Capture(v4l2_device)
+        else:  # "window"
+            self._hwnd = capture_window.get_hwnd_from_list(process_name, capture_window.get_visible_processes())
+
         self._game_region: list = game_region
         self._version = version
 
@@ -80,22 +90,28 @@ class GameCapture(object):
         self._regions[XCAM_REGION] = calc_region(calc_ratio(XCAM_REGION_RATIO, GAME_REGION_BASE))
 
     def is_valid(self):
-        if self._use_obs:
+        if self._capture_method == "obs":
             try:
                 self._shmem.open_shmem()
             except Exception as e:
-                raise Exception(str(e))    
+                raise Exception(str(e))
+        elif self._capture_method == "v4l2":
+            try:
+                self._v4l2.open()
+            except Exception as e:
+                raise Exception(str(e))
         else:
             if not bool(self._hwnd):
                 raise Exception(f"Could not find {self._process_name}\n\nMake sure the program is running and visible!")
 
     def capture(self) -> None:
-        if self._use_obs:
+        if self._capture_method == "obs":
             self._window_image = self._shmem.capture()
-
+        elif self._capture_method == "v4l2":
+            self._window_image = self._v4l2.capture()
         else:
-            self._window_image = capture_window.capture(self._hwnd) 
-            
+            self._window_image = capture_window.capture(self._hwnd)
+
         if self._vc_fix:
             # Fix for VC (Experimental) - Increases latency
             self._window_image = enhance_contrast(self._window_image, 1.2)
@@ -103,8 +119,10 @@ class GameCapture(object):
         self._region_images = {}  
 
     def get_capture_size(self):
-        if self._use_obs:
+        if self._capture_method == "obs":
             return self._shmem.get_capture_size()
+        elif self._capture_method == "v4l2":
+            return self._v4l2.get_capture_size()
         else:
             return capture_window.get_capture_size(self._hwnd)
 
@@ -132,6 +150,8 @@ class GameCapture(object):
     
     # Destructor
     def close(self):
-        if self._use_obs:
+        if self._capture_method == "obs" and self._shmem is not None:
             self._shmem.close_shmem()
+        elif self._capture_method == "v4l2" and self._v4l2 is not None:
+            self._v4l2.close()
 
