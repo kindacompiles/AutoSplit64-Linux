@@ -29,6 +29,11 @@ class CaptureEditor(QtWidgets.QDialog):
         # Initialize SharedMemoryCapture
         self.shmem_capture = capture_shmem.SharedMemoryCapture()
 
+        # Only probe a live capture source (OBS shared memory / V4L2 device)
+        # while the dialog is open. False during the startup construction the
+        # main window performs, so launch is never blocked opening a device.
+        self._live_preview = False
+
         # Layouts
         self.main_layout = QtWidgets.QHBoxLayout()
         self.left_layout = QtWidgets.QGridLayout()
@@ -220,10 +225,12 @@ class CaptureEditor(QtWidgets.QDialog):
         vc_fix = config.get("game", "vc_fix")
         self.vc_fix_cb.setChecked(vc_fix)
 
-        self.refresh_graphics_scene()
-
         config.create_rollback()
+        # Enable live capture now that the user has opened the dialog, then
+        # refresh so a preview is grabbed.
+        self._live_preview = True
         super().show()
+        self.refresh_graphics_scene()
 
     def apply_clicked(self):
         # if not self._is_correct_ratio():
@@ -298,40 +305,44 @@ class CaptureEditor(QtWidgets.QDialog):
         # Clear scene and update viewport
         self.graphics_scene.clear()
         self.graphics_view.update()
-        
-        # Check capture method
-        if self.use_obs_cb.isChecked():
-            try:
-                preview_image = self.shmem_capture.capture()
-                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
-            except:
-                # If capture fails, display a placeholder image
-                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
 
-                pass
-        elif not _IS_WIN:
-            # Linux V4L2 capture-card preview
-            preview_image = self._grab_v4l2_preview()
-            if preview_image is not None:
-                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
-            else:
-                cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
-        else:
-            # Update screen capture
-            selected_hwnd = 0
-
-            try:
-                selected_hwnd = self._process_list[self.process_combo.currentIndex()][1]
-            except IndexError:
-                pass
-        
-            if selected_hwnd:
+        # Only probe a live capture source while the dialog is actually open.
+        # The main window constructs this dialog at startup; probing OBS shared
+        # memory or (especially) opening a V4L2 device here would stall launch.
+        if self._live_preview:
+            # Check capture method
+            if self.use_obs_cb.isChecked():
                 try:
-                    preview_image = capture_window.capture(selected_hwnd)
+                    preview_image = self.shmem_capture.capture()
                     cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
                 except:
+                    # If capture fails, display a placeholder image
+                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
+
                     pass
-            
+            elif not _IS_WIN:
+                # Linux V4L2 capture-card preview
+                preview_image = self._grab_v4l2_preview()
+                if preview_image is not None:
+                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+                else:
+                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
+            else:
+                # Update screen capture
+                selected_hwnd = 0
+
+                try:
+                    selected_hwnd = self._process_list[self.process_combo.currentIndex()][1]
+                except IndexError:
+                    pass
+
+                if selected_hwnd:
+                    try:
+                        preview_image = capture_window.capture(selected_hwnd)
+                        cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+                    except:
+                        pass
+
         self.preview_pixmap.load(resource_utils.resource_path(PREVIEW_PATH))
 
         # Re-add all items to scene
@@ -360,6 +371,7 @@ class CaptureEditor(QtWidgets.QDialog):
             return True
 
     def closeEvent(self, e):
+        self._live_preview = False
         try:
             self.shmem_capture.close_shmem()
         except:
