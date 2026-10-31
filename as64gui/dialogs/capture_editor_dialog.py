@@ -34,6 +34,12 @@ class CaptureEditor(QtWidgets.QDialog):
         # main window performs, so launch is never blocked opening a device.
         self._live_preview = False
 
+        # Opening a V4L2 device can block (e.g. the card is busy because OBS
+        # already holds it), which would freeze the GUI thread. So a V4L2
+        # preview is only grabbed on an explicit "Capture Screen" click, never
+        # automatically when toggling the method or changing the device.
+        self._v4l2_grab_requested = False
+
         # Layouts
         self.main_layout = QtWidgets.QHBoxLayout()
         self.left_layout = QtWidgets.QGridLayout()
@@ -141,7 +147,7 @@ class CaptureEditor(QtWidgets.QDialog):
 
         # Connections
         self.graphics_scene.item_update.connect(self.on_graphics_item_update)
-        self.capture_btn.clicked.connect(self.refresh_graphics_scene)
+        self.capture_btn.clicked.connect(self._on_capture_clicked)
         self.apply_btn.clicked.connect(self.apply_clicked)
         self.cancel_btn.clicked.connect(self.cancel_clicked)
         self.game_region_panel.updated.connect(self.on_game_region_panel_update)
@@ -188,6 +194,13 @@ class CaptureEditor(QtWidgets.QDialog):
             return None
         finally:
             cap.close()
+
+    def _on_capture_clicked(self):
+        # The "Capture Screen" button is the only path that opens a V4L2 device
+        # for a preview (an explicit user action), so a possible block does not
+        # happen as a surprise side effect of toggling the capture method.
+        self._v4l2_grab_requested = True
+        self.refresh_graphics_scene()
 
     def show(self):
         # Load game_region from preferences
@@ -320,8 +333,11 @@ class CaptureEditor(QtWidgets.QDialog):
                     cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
 
                     pass
-            elif not _IS_WIN:
-                # Linux V4L2 capture-card preview
+            elif not _IS_WIN and self._v4l2_grab_requested:
+                # Linux V4L2 capture-card preview. Only on an explicit capture
+                # request (not on toggle/device change), because opening a busy
+                # device can block and freeze the GUI thread.
+                self._v4l2_grab_requested = False
                 preview_image = self._grab_v4l2_preview()
                 if preview_image is not None:
                     cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
