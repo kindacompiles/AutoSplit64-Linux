@@ -22,7 +22,9 @@ class App(QtWidgets.QMainWindow):
         super().__init__(parent=parent)
 
         # Window Properties
-        self.title = constants.TITLE
+        # Titlebar carries the "(Linux)" branding (no width limit there); the
+        # About panel keeps the short TITLE so it fits its fixed art panel.
+        self.title = constants.TITLE + " (Linux)"
         self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.width = 365
         self.height = 259

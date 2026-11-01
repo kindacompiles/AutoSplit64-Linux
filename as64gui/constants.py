@@ -1,8 +1,8 @@
-VERSION = "0.3.1"
+VERSION = "0.1.4"
 TITLE = "AutoSplit 64+"
-AUTHOR = "Davi Be\nSynozure"
+AUTHOR = "Davi Be, Synozure\nLinux port:\nKindaCompiles"
 
-GITHUB_REPO = "DaviBe92/AutoSplit64plus"
+GITHUB_REPO = "kindacompiles/AutoSplit64-Linux"
 DISCORD_LINK = "https://discord.gg/VmrQQBpPSK"
 
 WIDTH = 365
