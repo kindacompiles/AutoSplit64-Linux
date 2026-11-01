@@ -1,0 +1,43 @@
+name: Build AppImage
+
+# Builds the portable AppImage with the same packaging/build_appimage.sh that
+# developers run locally, so CI and local builds can never drift apart.
+#
+#   * push a tag like v0.1.0  -> builds and attaches the AppImage to that
+#     tag's GitHub Release
+#   * "Run workflow" (manual) -> builds and uploads the AppImage as a workflow
+#     artifact you can download (no Release needed), handy for testing
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write          # required to attach assets to the Release
+
+jobs:
+  appimage:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out (full history so 'git describe' sees the tag)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Build portable AppImage (manylinux_2_28 container)
+        run: ./packaging/build_appimage.sh --engine docker
+
+      - name: Upload as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoSplit64-AppImage
+          path: dist/*.AppImage
+          if-no-files-found: error
+
+      - name: Attach to the GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.AppImage
