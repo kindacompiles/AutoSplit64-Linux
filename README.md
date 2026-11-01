@@ -123,7 +123,7 @@ Right-click → **Edit Coordinates**. Pick how AutoSplit64 sees the game:
 - **OBS plugin** *(preferred)* — **this plugin is not bundled in the AppImage;
   build it yourself once** (`cd obs-plugin/linux && ./build.sh`, see
   [`obs-plugin/linux/README.md`](obs-plugin/linux/README.md) for install), then
-  add the **AS64+ Frame Grabber** effect filter to your SM64 source in OBS and
+  add the **AS64+ Frame grabber** effect filter to your SM64 source in OBS and
   tick **Use OBS Plugin** here. The plugin copies frames *before* OBS applies
   any resizing/overlays, so your scene layout never affects recognition.
 - **V4L2 capture card** — untick **Use OBS Plugin** and choose your
