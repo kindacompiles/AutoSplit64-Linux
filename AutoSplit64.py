@@ -6,6 +6,7 @@ from PyQt6 import QtCore, QtWidgets, QtGui
 from as64gui.app import App
 import as64core
 from as64core import paths
+from as64core.resource_utils import resource_path
 from as64core.processing import register_process, insert_global_hook, insert_global_processor_hook, ProcessorGenerator
 from as64core.route_loader import load
 from as64processes.standard import *
@@ -124,6 +125,9 @@ if __name__ == "__main__":
 
     # Configure QT Application Style
     qt_app.setStyle('Fusion')
+
+    # Window / taskbar icon (applies to the main window and all dialogs).
+    qt_app.setWindowIcon(QtGui.QIcon(resource_path("resources/gui/icons/as64plus.png")))
 
     palette = QtGui.QPalette()
     palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor(60, 63, 65))

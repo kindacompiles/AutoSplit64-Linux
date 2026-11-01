@@ -149,6 +149,9 @@ do_build() {
   if [[ -f "$icon" ]]; then
     cp "$icon" "$appdir/autosplit64.png"
     cp "$icon" "$appdir/usr/share/icons/hicolor/256x256/apps/autosplit64.png"
+    # .DirIcon is what file managers read for the AppImage's own icon; set it
+    # explicitly rather than relying on appimagetool's implicit symlink.
+    cp "$icon" "$appdir/.DirIcon"
   else
     warn "app icon not found: $icon"
   fi
