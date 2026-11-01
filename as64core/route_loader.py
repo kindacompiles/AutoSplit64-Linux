@@ -1,5 +1,6 @@
 import json
 
+from .resource_utils import rel_to_abs
 from .route import (
     Route,
     Split,
@@ -29,8 +30,13 @@ from .constants import (
 
 
 def load(file_path):
+    # Routes are referenced by paths that may be relative to the application
+    # root (e.g. "routes/foo.as64" stored in config). Resolve against the app
+    # root so loading works regardless of the current working directory -- an
+    # AppImage or .desktop launch does not run from the app directory.
+    resolved_path = rel_to_abs(file_path)
     try:
-        with open(file_path) as route_data:
+        with open(resolved_path) as route_data:
             data = route_data.read()
             new_data = data[:1] + '"file_path": ' + '"' + file_path + '",' + data[1:]
             decoded_route = RouteDecoder().decode(new_data)

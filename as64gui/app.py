@@ -6,7 +6,7 @@ import requests
 import json
 from PyQt6 import QtCore, QtGui, QtWidgets
 from as64core import route_loader, config, livesplit
-from as64core.resource_utils import base_path, resource_path, absolute_path, rel_to_abs
+from as64core.resource_utils import base_path, resource_path, absolute_path, rel_to_abs, abs_to_rel
 from . import constants
 from .widgets import PictureButton, StateButton, StarCountDisplay, SplitListWidget
 from .dialogs import AboutDialog, CaptureEditor, SettingsDialog, RouteEditor, ResetGeneratorDialog, OutputDialog
@@ -446,24 +446,33 @@ class App(QtWidgets.QMainWindow):
     def _load_route_dir(self):
         self._routes = {}
 
-        for file in os.listdir("routes"):
+        # Resolve the bundled routes directory against the app root so this
+        # works regardless of the current working directory (AppImage/.desktop
+        # launch). Paths stored in self._routes stay *relative* so they survive
+        # the AppImage mounting at a different /tmp path on each launch.
+        routes_dir = absolute_path("routes")
+        if not os.path.isdir(routes_dir):
+            return
+
+        for file in os.listdir(routes_dir):
             if file.endswith(".as64"):
-                route = route_loader.load("routes/" + file)
+                rel_path = "routes/" + file
+                route = route_loader.load(rel_path)
 
                 if route:
                     category = route.category
-
-                    try:
-                        self._routes[category].append([route.title, "routes/" + file])
-                    except KeyError:
-                        self._routes[category] = []
-                        self._routes[category].append([route.title, "routes/" + file])
+                    self._routes.setdefault(category, []).append([route.title, rel_path])
 
     def _on_route_update(self):
         self._load_route_dir()
         self.open_route()
 
     def _save_open_route(self, file_path):
+        # Store routes that live inside the app tree as relative paths; an
+        # AppImage mounts at a different /tmp path each launch, so an absolute
+        # path into the bundle would be stale next time. Paths outside the app
+        # tree (a user's own file) are left absolute.
+        file_path = abs_to_rel(file_path)
         prev_route = config.get("route", "path")
         config.set_key("route", "path", file_path)
         config.save_config()
