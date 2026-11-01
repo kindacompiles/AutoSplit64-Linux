@@ -1,173 +1,199 @@
-<h1 align="center"> AutoSplit64+ </h1><br>
+<h1 align="center">AutoSplit64+ <sub>(Linux port)</sub></h1>
 <p align="center">
-    <img alt="AS64+" title="AS64+" src="resources\gui\icons\as64plus.png" width="256">
+    <img alt="AS64+" title="AS64+" src="resources/gui/icons/as64plus.png" width="256">
+</p>
+<p align="center">
+    Automatic LiveSplit timing for Super Mario 64 console speedruns — now running natively on Linux.
 </p>
 
-## Introduction
-AutoSplit64+ is an enhanced fork of [AutoSplit64](https://github.com/Kainev/AutoSplit64), providing automated splitting for Super Mario 64 speedruns on console. 
-It analyzes captured gameplay to control LiveSplit timer events automatically. 
+---
 
-The project's main objectives are to simplify setup and enhance reliability.
+## What is this?
 
-## Key Features
-### Core Functionality
-- Automatic split timing
+**AutoSplit64+** watches your captured SM64 gameplay and drives your LiveSplit
+timer for you: it counts stars, detects fade-outs, X-Cam, DDD entry, the final
+star and console resets, and fires a split at exactly the right moment based on
+a route you define. No hotkeys to hit mid-run, no manual splitting.
+
+This repository is a **Linux port** of
+[DaviBe92/AutoSplit64plus](https://github.com/DaviBe92/AutoSplit64plus) (itself
+an enhanced fork of [Kainev/AutoSplit64](https://github.com/Kainev/AutoSplit64)).
+The upstream project is Windows-only; this port makes the same tool run on
+Linux without Wine, with Linux-native capture and timer integration.
+
+### What the port adds
+
+| Area | Upstream (Windows) | This port (Linux) |
+|------|--------------------|-------------------|
+| **Frame capture** | OBS plugin (Win32 shared memory) or Win32 window capture | OBS plugin rebuilt on **POSIX shared memory** (`/dev/shm`), **or** direct capture card via **V4L2** (OpenCV) |
+| **Timer control** | LiveSplit Server (TCP) / named pipe | LiveSplit TCP **or** the **OBS LiveSplit One** source driven over **OBS WebSocket** |
+| **Packaging** | `AutoSplit64plus.exe` (PyInstaller) | Single self-contained **AppImage** (bundles its own Python 3.12 + Qt) |
+| **Paths** | Everything relative to the install folder | XDG dirs — config in `~/.config/autosplit64`, data/logs in `~/.local/share/autosplit64` |
+
+Everything else — the recognition engine, the route format, the `.lss`
+importer, the GUI — is the upstream code, kept intact so routes and behaviour
+stay familiar.
+
+## Key features
+
+- Automatic split timing driven by on-screen events
+- Star-count, fade-out/fade-in, DDD-entry, final-star, X-Cam and death detection
 - Console reset detection
-- Star count detection
-- DDD entry, Final star, X-Cam and Death detection
-- Custom route creation
-- LiveSplit .lss file conversion
+- Custom route creation, plus one-click **import of your existing LiveSplit `.lss`**
+- Two capture paths (OBS plugin / V4L2 capture card) and two timer paths
+  (LiveSplit TCP / OBS LiveSplit One)
+- Optional **remember-window-position** and a **"Pop Out LiveSplit View"**
+  projector button (see [Using it](#using-it))
 
-### AS64+ Enhancements
-- **Direct OBS Integration**
-  - Native OBS capture support via Plugin
-  - Changing size, switching scenes, adding Overlays, etc. dont influence the capture
-  - AmaRecTV is no longer required
-- **Streamlined Setup**
-  - Automatic LiveSplit Server connection
-  - No manual server starting needed
-- **Autostart Split Detection**
-  - Automatically start Split Detection when AS64+ is launched
-  - Tries to connect to LiveSplit and start Game Capture for 5 minutes
-  - Once setup, AS64+ can run entirely in the background
-- **Improved Recognition**
-  - Enhanced star detection accuracy
-  - Resilient to inaccurate capture region 
-  - Automatic capture region detection
+## Requirements
 
-## System Requirements
-- Windows 10 or later
-- LiveSplit 1.8.29 or newer
-- OBS Studio 30.0 or newer (for OBS integration)
-- Capture device/card
+- **Linux**, x86-64
+- **Python 3.12** *(only if running from source — the AppImage bundles its own)*
+- **LiveSplit** 1.8.29+ (via Wine/VM) **or** the **obs-livesplit-one** OBS plugin
+- **OBS Studio 30+** if you use OBS for capture and/or timing
+- A **capture device/card** for your console
 
-## Quick Setup
+## Install
 
-1. Download the latest [Release](https://github.com/DaviBe92/AutoSplit64/releases).
-2. Extract contents and run `AutoSplit64plus.exe`.
-3. Set LiveSplit to start at 1.36 seconds.
-4. Set Game Capture method and region.
-5. Generate Reset Templates.
-6. Press Start.
+### Option A — AppImage (recommended)
 
-### Interface
+Download the latest `AutoSplit64-*.AppImage`, then:
 
-All windows and options are accessed via the right-click menu:
+```bash
+chmod +x AutoSplit64-*.AppImage
+./AutoSplit64-*.AppImage
+```
+
+No Python, no virtualenv, no system packages — it's all inside the AppImage.
+Your settings and logs live in `~/.config/autosplit64` and
+`~/.local/share/autosplit64`, so updating is just swapping the file.
+
+> Building the AppImage yourself is a one-command container build — see
+> [`packaging/README.md`](packaging/README.md).
+
+> ### ⚠️ The OBS capture plugin is **not** inside the AppImage
+> If you capture through OBS (the preferred method), you must build the small
+> frame-grabber `.so` **once on your own machine** — it loads into OBS, not into
+> AutoSplit64, so it can't ship inside the AppImage, and it's compiled against
+> *your* OBS version. It's a one-command build:
+>
+> ```bash
+> cd obs-plugin/linux && ./build.sh
+> # → build/autosplit64plus-framegrabber.so
+> ```
+>
+> Then install it and add the filter in OBS — full steps (including Flatpak OBS
+> and the per-user install path) are in
+> [`obs-plugin/linux/README.md`](obs-plugin/linux/README.md).
+> *(Using a V4L2 capture card instead? You don't need the plugin at all.)*
+
+### Option B — from source
+
+```bash
+git clone https://github.com/kindacompiles/AutoSplit64-Linux.git
+cd AutoSplit64-Linux
+python3.12 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python AutoSplit64.py
+```
+
+## First-time setup
+
+AutoSplit64 needs three things wired up: **a timer to control**, **a frame
+source to watch**, and **a route that says when to split**.
+
+### 1. Timer
+
+Right-click the main window → **Settings → Connection → Timer Method**:
+
+- **OBS LiveSplit One** *(no separate LiveSplit install)* — add a *LiveSplit
+  One* source in OBS (install the `obs-livesplit-one` plugin). AutoSplit64
+  controls it over OBS WebSocket (enable **Tools → WebSocket Server Settings**
+  in OBS; default `localhost:4455`). Set the host/port/password to match.
+- **LiveSplit (TCP)** — run LiveSplit with its TCP server. Because resets are
+  detected only when the SM64 logo appears, set LiveSplit's
+  **Edit Splits → Start Timer at** to **1.36** seconds.
+
+Click **Test Connection** to confirm it finds your timer.
+
+### 2. Capture
+
+Right-click → **Edit Coordinates**. Pick how AutoSplit64 sees the game:
+
+- **OBS plugin** *(preferred)* — **this plugin is not bundled in the AppImage;
+  build it yourself once** (`cd obs-plugin/linux && ./build.sh`, see
+  [`obs-plugin/linux/README.md`](obs-plugin/linux/README.md) for install), then
+  add the **AS64+ Frame Grabber** effect filter to your SM64 source in OBS and
+  tick **Use OBS Plugin** here. The plugin copies frames *before* OBS applies
+  any resizing/overlays, so your scene layout never affects recognition.
+- **V4L2 capture card** — untick **Use OBS Plugin** and choose your
+  `/dev/videoN` device. This reads the card directly. Note: only **one** program
+  can open a V4L2 device at a time, so you can't share the card with OBS while
+  using this mode.
+
+Press **Capture Screen** to preview a frame, then **Auto Detect Region** (do
+this on a bright frame, e.g. a star-select screen). Nudge the region so it sits
+**1–2 px inside** the game image — never outside it — then **Apply**.
+
+### 3. Route
+
+Right-click → **Edit Route**. The fastest start is **File → Convert LSS** to
+import the `.lss` you already use in LiveSplit; check each split afterward.
+
+Then right-click → **Start**. 🎮
+
+## Using it
+
+All windows and options live in the **right-click menu** of the main window:
 
 ![Interface](repo/menu_screen.png)
 
-## Usage Guide
+A few Linux-port conveniences:
 
-### LiveSplit
-
-AutoSplit64+ directly communicates with LiveSplit using a Named Pipe. There is no need to manually start the LiveSplit Server.
-
-Since AS64+ recognizes the reset only when the Super Mario 64 logo appears, we need to set the Timer to Start at 1.36 seconds.
-
-In LiveSplit `Right-Click -> Edit Splits...` &rarr; Set `Start Timer at:` to **1.36**
-
-### Game Capture
-
-There are 2 options to capture the game:
-- **OBS Plugin** (*preffered*)
-- **Window Capture** 
-
-#### OBS Plugin
-
-The AutoSplit64+ Grabber OBS plugin sends the gameplay directly to AutoSplit64+ before any modifications are done to it. Changing size, adding effects, overlays, etc. are not captured do not influence the result. 
-
-##### Install Plugin:
-- Close OBS
-- Copy the plugin file `autosplit64plus-framegrabber.dll` located in `AutpSplit64plus/OBS-Plugin` to your OBS plugin folder
-- Usually located in `C:\Program Files\obs-studio\obs-plugins\64bit`
-- Open OBS
-- Open the Filters Menu of your capture card source (`Right-Click -> Filters`)
-- Add (+) Effects Filter and choose `AS64+ Frame Grabber`
-![OBS Filter Menu](repo/obs_filters_screen.png)
-![OBS Plugin](repo/obs_plugin_screen.png)
-
-- If you have any other Filters applied, make sure `AS64+ Frame Grabber` is at the very top
-- Close Filters Menu
-##### Setup AutoSplit64+:
-- Open the Capture Editor in AutoSplit64+ (`Right-Click -> Edit Coordinates`):
-
-![OBS Plugin Capture](repo/capture_screen_obs.png)
-
-- Check `Use OBS Plugin`
-- Pressing `Capture Screen` will update the shown frame.
-- Make sure a frame in a bright environment is shown, like the one above.
-- Pressing `Auto Detect Region` should correctly position the `Game Region selector` as shown. 
-
-If the region was not detected poperly, adjust the region manually and ensure it is as accurate as possible for best results. When in doubt, its better to select 1-2 pixels into the game as shown above. Selecting even 1 pixel outside of the game area will cause issues!
-
-- Press `Apply` to save changes.
-
-#### Window Capture
-Window Capture will take a screenshot of the selected programm 30 times/second.
-
-- Make sure you have your capture software open (i.e.AmaRecTV)
-- Open the Capture Editor in AutoSplit64+ (`Right-Click -> Edit Coordinates`):
- 
-![Window Capture](repo/capture_screen_window.png)
-
-- Uncheck `Use OBS Plugin`
-- Select the desired process from the `Process` drop-down.
-- Pressing `Capture Screen` will update the shown frame.
-- Make sure a frame in a bright environment is shown, like the one above.
-- When using AmaRecTV, pressing `Auto Detect Region` should correctly position the `Game Region selector` as shown. 
-
-When capturing another progamm or the region was not detected poperly, adjust the region manually and ensure it is as accurate as possible for best results. When in doubt, its better to select 1-2 pixels into the game as shown above. Selecting even 1 pixel outside of the game area will cause issues!
-
-- Press `Apply` to save changes.
-
-**NOTE:**
-If you are using a correctly configured version of AmaRecTV as shown (with windows size at 100% `Right-Click AmaRecTV -> 100%`), the default settings should already be set appropriately.
-
-### Routes
-
-We must let AutoSplit 64 know when we want splits to occur. This can be done by using the Route Editor (`Right-Click -> Edit Route`) to generate route files.
-
-A regular split will trigger when the specified number of stars have been collected, and a set amount of fadeouts or fadeins have occurred after the star count was reached, or the last split occurred.
-
-Every time a star is collected, or a split, undo or skip is triggered, the fadeout and fadein count are reset to 0.
-The Route Editor has been designed to look and function similar to the split editor found in LiveSplit to make it as familiar as possible.
-
-**The easiest method of creating routes is to import your splits you use for LiveSplit. To do this, in the Route Editor, nagivate to `File -> Convert LSS`. Open the `.lss` file you use with LiveSplit. AutoSplit 64 will attempt to fill in as many details as possible to simplify the route creation process, however it is important you check each split to make sure it is correct.**
+- **Remember Window Position** — *Settings → General*. When on (default), the
+  app reopens where you last left it (falling back to the default spot if that
+  monitor is gone).
+- **Pop Out LiveSplit View** — right-click → *Pop Out LiveSplit View* opens a
+  windowed OBS projector of your LiveSplit One source at a saved size/position,
+  so you don't have to set it up by hand each session. *(Requires the OBS
+  LiveSplit One timer method.)* The geometry is stored as
+  `connection.obs_projector_geometry` in `~/.config/autosplit64/config.ini`.
 
 ## Troubleshooting
 
-If you encounter any issues, please run through all steps below.
+Run through these if splitting misbehaves:
 
-- Check capture coordinates are correct (`Right Click -> Edit Coordinates`)
-- When using TCP connection, ensure LiveSplit server is running (`Right Click LiveSplit -> Control -> Start Server')
-- Check the correct route is loaded, and that the route file is accurate (i.e. correct star counts, fadeout/fadein counts)
-- Make sure SRL Mode (Right Click -> SRL Mode) is disabled if you want AutoSplit64 to detect console resets
-- Generate reset templates (`Right Click -> Generate Reset Templates`)
-- Enlarge your game capture window if it is very small
-- Make sure the captures colour settings (i.e. saturation) are default or close to default
-- If using an unpowered splitter, compare the whiteness of your star select screens to other players. If it is extremely dull you may need to increase your capture brightness
-- Ensure your capture is set to a 4:3 aspect ratio (or close to)
+- Recheck the capture region (**Edit Coordinates**) — a region even 1 px outside
+  the game area breaks recognition.
+- Confirm the right **route** is loaded and its star / fade counts are correct.
+- **Generate Reset Templates** (right-click menu) if reset detection is off.
+- Disable **SRL Mode** if you want console-reset detection.
+- Keep capture colours near default; very dull whites hurt star-select
+  detection (bump brightness on unpowered splitters).
+- Aim for a **4:3** capture aspect ratio.
+- **`could not load the Qt platform plugin "xcb"`** from the AppImage → see the
+  troubleshooting notes in [`packaging/README.md`](packaging/README.md).
+- Logs are written to `~/.local/share/autosplit64/autosplit64.log`.
 
-## Development
-### Requirements
-- Python 3.12.8
-- Dependencies listed in `requirements.txt`
+## Building
 
-### Building
-1. Clone the repository
-2. Install dependencies: `pip install -r requirements.txt`
-3. Run `build.bat` to create executable
-
-## Support
-- For help join our [Discord](https://discord.gg/VmrQQBpPSK)
+- **The app** → [from source](#option-b--from-source), above.
+- **The AppImage** → [`packaging/README.md`](packaging/README.md).
+- **The OBS frame-grabber plugin** → [`obs-plugin/linux/README.md`](obs-plugin/linux/README.md).
+- **How it all fits together (architecture, data flow, internals)** →
+  [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Credits
-Developed with ❤️ by [Davi Be](https://github.com/DaviBe92)
 
-Synozure - [AutoSplit64](https://github.com/Kainev/AutoSplit64)
+- **AutoSplit64+** — [Davi Be](https://github.com/DaviBe92/AutoSplit64plus) (the fork this port is based on)
+- **AutoSplit64** — [Synozure / Kainev](https://github.com/Kainev/AutoSplit64) (the original)
+- **Star Classifier** — [Gerardo Cervantes](https://github.com/gerardocervantes8/Star-Classifier-For-Mario-64)
+- The POSIX shared-memory capture approach follows the earlier Linux forks
+  **SmolAlli/AutoSplit64plusLinux** and **Poke711/AutoSplit64plusLinux**.
 
-Gerardo Cervantes - [Star Classifier](https://github.com/gerardocervantes8/Star-Classifier-For-Mario-64)
+The Linux port work in this repository was done with assistance from
+**[Claude Code](https://claude.com/claude-code)** (Anthropic).
 
-#### TODO
+## License
 
-- RetroSpy integration for reset detection
+GPLv3 — see [`LICENSE`](LICENSE). This port inherits the upstream license.
