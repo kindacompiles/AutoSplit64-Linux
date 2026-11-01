@@ -214,7 +214,7 @@ class CaptureEditor(QtWidgets.QDialog):
             x = max(0, (640 - tw) // 2)
             y = y0 + i * line_h
             cv2.putText(img, text, (x, y), font, scale, (200, 200, 200), thickness, cv2.LINE_AA)
-        cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), img)
+        cv2.imwrite(resource_utils.user_data_path("game_preview.png"), img)
 
     def _on_capture_clicked(self):
         # The "Capture Screen" button is the only path that opens a V4L2 device
@@ -348,11 +348,11 @@ class CaptureEditor(QtWidgets.QDialog):
             if self.use_obs_cb.isChecked():
                 try:
                     preview_image = self.shmem_capture.capture()
-                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+                    cv2.imwrite(resource_utils.user_data_path("game_preview.png"), preview_image)
                 except:
                     # OBS frame-grabber shared memory not available: the baked
                     # obs_error.png explains the plugin is missing/not added.
-                    cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
+                    cv2.imwrite(resource_utils.user_data_path("game_preview.png"), cv2.imread(resource_utils.resource_path(PLACEHOLDER_PATH)))
             elif not _IS_WIN:
                 # Linux V4L2 capture-card preview. Opening a device is only done
                 # on an explicit "Capture Screen" click (not on toggle/device
@@ -362,7 +362,7 @@ class CaptureEditor(QtWidgets.QDialog):
                     self._v4l2_grab_requested = False
                     preview_image = self._grab_v4l2_preview()
                     if preview_image is not None:
-                        cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+                        cv2.imwrite(resource_utils.user_data_path("game_preview.png"), preview_image)
                     else:
                         device = self.v4l2_combo.currentText() or "(no device)"
                         self._write_placeholder(
@@ -387,11 +387,11 @@ class CaptureEditor(QtWidgets.QDialog):
                 if selected_hwnd:
                     try:
                         preview_image = capture_window.capture(selected_hwnd)
-                        cv2.imwrite(resource_utils.resource_path(PREVIEW_PATH), preview_image)
+                        cv2.imwrite(resource_utils.user_data_path("game_preview.png"), preview_image)
                     except:
                         pass
 
-        self.preview_pixmap.load(resource_utils.resource_path(PREVIEW_PATH))
+        self.preview_pixmap.load(resource_utils.user_data_path("game_preview.png"))
 
         # Re-add all items to scene
         self.graphics_scene.addPixmap(self.preview_pixmap)

@@ -37,9 +37,6 @@ class ProcessLBLJ2(Process):
             return ProcessLBLJ.FADEOUT
 
         if cv2.inRange(no_hud, self.green_lower_bound, self.green_upper_bound).any():
-            portal_mask = cv2.inRange(no_hud, self.green_lower_bound, self.green_upper_bound)
-            output = cv2.bitwise_and(no_hud, no_hud, mask=portal_mask)
-            cv2.imwrite("green.png", output)
             self.green_found = True
 
         if cv2.inRange(no_hud, self.purple_lower_bound, self.purple_upper_bound).any() and cv2.inRange(no_hud, self.green_lobby_lower_bound, self.green_lobby_upper_bound).any() and not self.green_found:
@@ -102,8 +99,6 @@ class ProcessLBLJ(Process):
         grey_output = cv2.bitwise_and(no_hud, no_hud, mask=grey_mask)
 
         if not is_black(grey_output, 0.16, 0.88):
-            cv2.imwrite("grey.png", grey_output)
-            print("GREY!")
             self.grey_found_time = time.time()
 
 

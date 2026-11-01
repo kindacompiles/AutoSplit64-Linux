@@ -33,6 +33,17 @@ def resource_path(relative_path):
     return str(paths.app_root() / relative_path)
 
 
+def user_data_path(relative_path):
+    """Absolute path to a *user-writable* data file (XDG data dir).
+
+    Use this for anything the app generates or overwrites at runtime -- preview
+    frames, generated reset templates, etc. The application root is read-only
+    when running from an AppImage, so generated files must never be written
+    there; they belong under ``paths.data_dir()``.
+    """
+    return str(paths.data_dir() / relative_path)
+
+
 def abs_to_rel(p):
     """Make ``p`` relative to the application root when it lives inside it."""
     try:

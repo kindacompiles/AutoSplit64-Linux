@@ -71,7 +71,10 @@ class ResetGeneratorHelpDialog(QtWidgets.QDialog):
 
 
 class ResetGeneratorDialog(QtWidgets.QDialog):
-    TEMPLATE_DIR = "templates/"
+    # Generated reset templates are written here at runtime, so this must be a
+    # user-writable location (the app root is read-only in an AppImage). The
+    # bundled *default* templates are read from the app root via resource_path.
+    TEMPLATE_DIR = resource_utils.user_data_path("") + "/"
     
     def __init__(self, parent=None):
         super().__init__(parent, QtCore.Qt.WindowType.WindowSystemMenuHint | QtCore.Qt.WindowType.WindowCloseButtonHint)
@@ -115,8 +118,8 @@ class ResetGeneratorDialog(QtWidgets.QDialog):
         self.def_1_px.setFixedSize(251, 137)
         self.def_2_px.setFixedSize(251, 137)
 
-        self.def_1_px.setPixmap(QtGui.QPixmap(ResetGeneratorDialog.TEMPLATE_DIR + "default_reset_one.jpg"))
-        self.def_2_px.setPixmap(QtGui.QPixmap(ResetGeneratorDialog.TEMPLATE_DIR + "default_reset_two.jpg"))
+        self.def_1_px.setPixmap(QtGui.QPixmap(resource_utils.resource_path("templates/default_reset_one.jpg")))
+        self.def_2_px.setPixmap(QtGui.QPixmap(resource_utils.resource_path("templates/default_reset_two.jpg")))
 
         self.button_layout.addItem(
             QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Expanding, QtWidgets.QSizePolicy.Policy.Minimum))
