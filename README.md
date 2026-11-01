@@ -55,7 +55,24 @@ stay familiar.
 
 ## Install
 
-### Option A — AppImage (recommended)
+### Easiest — the install script
+
+One command installs the app **and** builds the OBS capture plugin for your
+OBS. It asks what you want, detects your distro, and does the rest:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/kindacompiles/AutoSplit64-Linux/main/install.sh | bash
+```
+
+It downloads the latest AppImage, adds a menu entry, and (if you choose)
+compiles the frame-grabber plugin and drops it into the right OBS folder —
+native **or** Flatpak OBS. It only ever uses `sudo` to install build
+dependencies, and always asks first. Re-run it anytime to update.
+
+> Prefer to inspect it first? [Read `install.sh`](install.sh) — it's plain bash.
+> The manual options below do exactly the same steps by hand.
+
+### Option A — AppImage (manual)
 
 Download the latest `AutoSplit64-*.AppImage`, then:
 
@@ -75,7 +92,8 @@ Your settings and logs live in `~/.config/autosplit64` and
 > If you capture through OBS (the preferred method), you must build the small
 > frame-grabber `.so` **once on your own machine** — it loads into OBS, not into
 > AutoSplit64, so it can't ship inside the AppImage, and it's compiled against
-> *your* OBS version. It's a one-command build:
+> *your* OBS version. The install script above does this for you; to do it by
+> hand it's a one-command build:
 >
 > ```bash
 > cd obs-plugin/linux && ./build.sh
