@@ -27,6 +27,23 @@ endif()
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBOBS REQUIRED libobs)
 
+# Some distros (notably Arch) ship a libobs.pc whose Cflags omit the -I for the
+# OBS header directory -- the headers live in <includedir>/obs but the .pc does
+# not advertise it, so LIBOBS_INCLUDE_DIRS comes back empty and obs-module.h is
+# not found. Locate the header explicitly (checking an "obs" subdir) so the
+# build works regardless of how the .pc is written.
+find_path(OBS_INCLUDE_DIR
+  NAMES obs-module.h
+  HINTS ${LIBOBS_INCLUDE_DIRS} ${LIBOBS_INCLUDEDIR} ${LIBOBS_PREFIX}/include
+  PATHS /usr/include /usr/local/include
+  PATH_SUFFIXES obs
+)
+if(NOT OBS_INCLUDE_DIR)
+  message(FATAL_ERROR
+    "Could not find obs-module.h. Install the OBS development headers "
+    "(Debian/Ubuntu: libobs-dev, Fedora: obs-studio-devel, Arch: obs-studio).")
+endif()
+
 add_library(autosplit64plus-framegrabber MODULE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src/autosplit64plus-framegrabber.c
 )
@@ -34,6 +51,7 @@ add_library(autosplit64plus-framegrabber MODULE
 target_include_directories(autosplit64plus-framegrabber PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/../src
   ${LIBOBS_INCLUDE_DIRS}
+  ${OBS_INCLUDE_DIR}
 )
 
 target_link_directories(autosplit64plus-framegrabber PRIVATE ${LIBOBS_LIBRARY_DIRS})
