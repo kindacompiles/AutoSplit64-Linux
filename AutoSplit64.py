@@ -128,6 +128,10 @@ if __name__ == "__main__":
 
     # Window / taskbar icon (applies to the main window and all dialogs).
     qt_app.setWindowIcon(QtGui.QIcon(resource_path("resources/gui/icons/as64plus.png")))
+    # On Wayland the compositor draws the titlebar icon from the .desktop file
+    # it matches this app_id to, not from setWindowIcon. Point it at the
+    # installed autosplit64.desktop so the decoration shows our icon too.
+    QtGui.QGuiApplication.setDesktopFileName("autosplit64")
 
     palette = QtGui.QPalette()
     palette.setColor(QtGui.QPalette.ColorRole.Window, QtGui.QColor(60, 63, 65))
