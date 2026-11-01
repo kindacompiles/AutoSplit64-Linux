@@ -192,26 +192,26 @@ class GeneralMenu(BaseMenu):
 
         # Configure Widgets
         self.mode_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.mode_lb.setMaximumWidth(130)
+        self.mode_lb.setMaximumWidth(180)
         self.mode_combo.setMaximumWidth(130)
         self.mode_combo.addItems(["Probability", "X-Cam"])
 
         self.override_ver_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.override_ver_lb.setMaximumWidth(130)
+        self.override_ver_lb.setMaximumWidth(180)
         self.override_ver_cb.setMaximumWidth(20)
         self.override_ver_combo.setMaximumWidth(130)
         self.override_ver_combo.addItems(["JP", "US"])
 
         self.mid_run_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.mid_run_lb.setMaximumWidth(130)
+        self.mid_run_lb.setMaximumWidth(180)
         self.mid_run_cb.setMaximumWidth(20)
 
         self.on_top_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.on_top_lb.setMaximumWidth(130)
+        self.on_top_lb.setMaximumWidth(180)
         self.on_top_cb.setMaximumWidth(20)
 
         self.update_check_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.update_check_lb.setMaximumWidth(130)
+        self.update_check_lb.setMaximumWidth(180)
         self.update_check_cb.setMaximumWidth(20)
         
         self.autostart_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
@@ -219,7 +219,7 @@ class GeneralMenu(BaseMenu):
         self.autostart_cb.setMaximumWidth(20)
 
         self.remember_pos_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
-        self.remember_pos_lb.setMaximumWidth(130)
+        self.remember_pos_lb.setMaximumWidth(180)
         self.remember_pos_cb.setMaximumWidth(20)
 
         # Add Widgets

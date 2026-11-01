@@ -49,6 +49,18 @@ class App(QtWidgets.QMainWindow):
         self.start_btn = StateButton(self.start_pixmap, self.start_pixmap, parent=self.central_widget)
         self.split_list = SplitListWidget(self.central_widget)
 
+        # SRL-mode badge: hidden unless SRL Mode is on. SRL Mode silently stops
+        # the splitter from resetting/starting the timer, so make it visible.
+        self.srl_indicator = QtWidgets.QLabel("SRL MODE", self.central_widget)
+        self.srl_indicator.setStyleSheet(
+            "QLabel { background-color: rgba(200, 40, 40, 220); color: white;"
+            " font-weight: bold; font-size: 10px; padding: 2px 5px;"
+            " border-radius: 3px; }")
+        self.srl_indicator.setToolTip(
+            "SRL (race) Mode is on: the splitter will not reset or start your "
+            "timer automatically. Toggle it in the right-click menu.")
+        self.srl_indicator.hide()
+
         # Font
         self.button_font = QtGui.QFont("Tw Cen MT", 14)
         self.start_count_font = QtGui.QFont("Tw Cen MT", 20)
@@ -148,6 +160,8 @@ class App(QtWidgets.QMainWindow):
         self.split_list.setFixedSize(183, self.height)
         self.split_list.move(0, 0)
 
+        self._update_srl_indicator()
+
         self.open_route()
 
         # Connections
@@ -157,6 +171,16 @@ class App(QtWidgets.QMainWindow):
         self.dialogs["settings_dialog"].applied.connect(self.settings_updated)
         self.dialogs["capture_editor"].applied.connect(self._reset)
  
+    def _update_srl_indicator(self):
+        """Show/hide the SRL-mode badge based on config, pinned top-right."""
+        if config.get("general", "srl_mode"):
+            self.srl_indicator.adjustSize()
+            self.srl_indicator.move(self.width - self.srl_indicator.width() - 8, 8)
+            self.srl_indicator.show()
+            self.srl_indicator.raise_()
+        else:
+            self.srl_indicator.hide()
+
     def settings_updated(self):
         self.set_always_on_top(config.get("general", "on_top"))
         self._reset()
@@ -336,6 +360,7 @@ class App(QtWidgets.QMainWindow):
             checked = srl_action.isChecked()
             config.set_key("general", "srl_mode", checked)
             config.save_config()
+            self._update_srl_indicator()
         elif action == edit_route:
             self.dialogs["route_editor"].show()
         elif action == file_action:
