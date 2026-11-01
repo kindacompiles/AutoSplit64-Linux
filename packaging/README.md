@@ -8,6 +8,10 @@ no system packages.
 ## Quick start
 
 ```bash
+# Get the source (once)
+git clone https://github.com/kindacompiles/AutoSplit64-Linux.git
+cd AutoSplit64-Linux
+
 # Portable build (recommended) — runs on Debian 12, Ubuntu 20.04+, Arch, Fedora…
 sudo pacman -S podman          # Arch     (one-time; rootless, no daemon)
 # sudo apt install podman      # Debian/Ubuntu
@@ -15,6 +19,8 @@ sudo pacman -S podman          # Arch     (one-time; rootless, no daemon)
 
 # → dist/AutoSplit64-<version>-x86_64.AppImage
 ```
+
+(Run the script from the repo root — the paths are relative to it.)
 
 That's the whole workflow: install `podman` once, then run the script whenever
 you want a fresh build. The result lands in `dist/`.
