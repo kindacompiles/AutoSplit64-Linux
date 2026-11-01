@@ -5,7 +5,7 @@ import re
 import requests
 import json
 from PyQt6 import QtCore, QtGui, QtWidgets
-from as64core import route_loader, config
+from as64core import route_loader, config, livesplit
 from as64core.resource_utils import base_path, resource_path, absolute_path, rel_to_abs
 from . import constants
 from .widgets import PictureButton, StateButton, StarCountDisplay, SplitListWidget
@@ -109,6 +109,11 @@ class App(QtWidgets.QMainWindow):
             self.setWindowFlags(QtCore.Qt.WindowType.MSWindowsFixedSizeDialogHint)
 
         self.setFixedSize(self.width, self.height)
+
+        # Restore the last window position (opt-in). Only applied if it still
+        # lands on a currently-connected screen, so a saved position from an
+        # unplugged monitor can't drop the window off-screen.
+        self._restore_window_position()
 
         # Configure Central Widget
         self.central_widget.setObjectName("central_widget")
@@ -306,6 +311,8 @@ class App(QtWidgets.QMainWindow):
         context_menu.addSeparator()
         output_action = context_menu.addAction("Show Output")
         context_menu.addSeparator()
+        popout_action = context_menu.addAction("Pop Out LiveSplit View")
+        context_menu.addSeparator()
         autostart_action = QtGui.QAction("Autostart", self, checkable=True)
         context_menu.addAction(autostart_action)
         autostart_action.setChecked(config.get("general", "auto_start"))
@@ -337,6 +344,8 @@ class App(QtWidgets.QMainWindow):
             self.dialogs["reset_dialog"].show()
         elif action == output_action:
             self.dialogs["output_dialog"].show()
+        elif action == popout_action:
+            self._pop_out_livesplit()
         elif action == autostart_action:
             checked = autostart_action.isChecked()
             config.set_key("general", "auto_start", checked)
@@ -491,8 +500,62 @@ class App(QtWidgets.QMainWindow):
         super().close()
         
     def closeEvent(self, event):
+        self._save_window_position()
         self.close()
         event.accept()
+
+    def _save_window_position(self):
+        if not config.get("general", "remember_window_position"):
+            return
+        try:
+            pos = self.pos()
+            config.set_key("general", "window_position", [pos.x(), pos.y()])
+            config.save_config()
+        except Exception:
+            pass
+
+    def _restore_window_position(self):
+        if not config.get("general", "remember_window_position"):
+            return
+        try:
+            saved = config.get("general", "window_position")
+            if not saved or len(saved) != 2:
+                return
+            point = QtCore.QPoint(int(saved[0]), int(saved[1]))
+            # Only restore if the saved position is on a screen that exists now.
+            frame = QtCore.QRect(point, self.size())
+            for screen in QtWidgets.QApplication.screens():
+                if screen.availableGeometry().intersects(frame):
+                    self.move(point)
+                    return
+        except Exception:
+            pass
+
+    def _pop_out_livesplit(self):
+        """Open a windowed LiveSplit projector in OBS at the saved geometry."""
+        sock = livesplit.connect()
+        if sock is False:
+            err = livesplit.connection_error() or "Could not connect to the timer."
+            QtWidgets.QMessageBox.warning(self, "Pop Out LiveSplit View", err)
+            return
+        try:
+            livesplit.open_projector(sock, self._projector_geometry_b64())
+        except Exception as e:
+            QtWidgets.QMessageBox.warning(self, "Pop Out LiveSplit View", str(e))
+        finally:
+            livesplit.disconnect(sock)
+
+    def _projector_geometry_b64(self):
+        """Build the Qt base64 geometry OBS wants from the configured rect."""
+        try:
+            rect = config.get("connection", "obs_projector_geometry")
+            if not rect or len(rect) != 4:
+                return None
+            holder = QtWidgets.QWidget()
+            holder.setGeometry(int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3]))
+            return bytes(holder.saveGeometry().toBase64()).decode("ascii")
+        except Exception:
+            return None
 
     def _on_start_btn_hover(self, hovering):
         if hovering:

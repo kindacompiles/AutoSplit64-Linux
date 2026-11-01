@@ -176,6 +176,28 @@ class OBSWebSocketTimer(object):
     def pause(self):
         self._trigger(HOTKEY_PAUSE)
 
+    def open_projector(self, geometry_b64=None):
+        """Pop out a windowed projector for the LiveSplit One source.
+
+        ``geometry_b64`` is a Qt ``saveGeometry()`` byte string, base64-encoded
+        (the format OBS expects for a windowed projector). When given, the
+        projector opens at that size/position; otherwise OBS places it. Raises
+        with a user-facing message if there is no LiveSplit source or the call
+        fails.
+        """
+        if self._client is None and not self._reconnect():
+            raise Exception("LiveSplit (OBS) connection lost")
+        source = self.livesplit_source_name()
+        if not source:
+            raise Exception("No LiveSplit One source found in OBS.")
+        try:
+            # monitor_index must be -1 for a windowed (geometry-based) projector.
+            self._client.open_source_projector(
+                source, monitor_index=-1, projector_geometry=geometry_b64
+            )
+        except Exception as e:
+            raise Exception(f"Could not open the LiveSplit projector in OBS.\n\n({e})")
+
     def split_index(self):
         """Current split index mirror (-1 when the timer is not running)."""
         return self._split_index

@@ -181,6 +181,9 @@ class GeneralMenu(BaseMenu):
         self.update_check_lb = QtWidgets.QLabel("Check for Updates:")
         self.update_check_cb = QtWidgets.QCheckBox()
 
+        self.remember_pos_lb = QtWidgets.QLabel("Remember Window Position:")
+        self.remember_pos_cb = QtWidgets.QCheckBox()
+
         self.init()
 
     def init(self):
@@ -215,15 +218,22 @@ class GeneralMenu(BaseMenu):
         self.autostart_cb.setMaximumWidth(130)
         self.autostart_cb.setMaximumWidth(20)
 
+        self.remember_pos_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        self.remember_pos_lb.setMaximumWidth(130)
+        self.remember_pos_cb.setMaximumWidth(20)
+
         # Add Widgets
         self.menu_layout.addWidget(self.on_top_lb, 2, 0)
         self.menu_layout.addWidget(self.on_top_cb, 2, 1)
 
         self.menu_layout.addWidget(self.update_check_lb, 3, 0)
         self.menu_layout.addWidget(self.update_check_cb, 3, 1)
-        
+
         self.menu_layout.addWidget(self.autostart_lb, 4, 0)
         self.menu_layout.addWidget(self.autostart_cb, 4, 1)
+
+        self.menu_layout.addWidget(self.remember_pos_lb, 5, 0)
+        self.menu_layout.addWidget(self.remember_pos_cb, 5, 1)
 
         self.menu_layout.addItem(
             QtWidgets.QSpacerItem(10, 10, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Minimum), 6, 0)
@@ -278,6 +288,7 @@ class GeneralMenu(BaseMenu):
         self.on_top_cb.setChecked(config.get("general", "on_top"))
         self.update_check_cb.setChecked(config.get("general", "update_check"))
         self.autostart_cb.setChecked(config.get("general", "auto_start"))
+        self.remember_pos_cb.setChecked(config.get("general", "remember_window_position"))
 
         if config.get("game", "version") == "US":
             self.override_ver_combo.setCurrentIndex(1)
@@ -294,6 +305,7 @@ class GeneralMenu(BaseMenu):
         config.set_key("general", "on_top", self.on_top_cb.isChecked())
         config.set_key("general", "update_check", self.update_check_cb.isChecked())
         config.set_key("general", "auto_start", self.autostart_cb.isChecked())
+        config.set_key("general", "remember_window_position", self.remember_pos_cb.isChecked())
 
 class ThresholdsMenu(BaseMenu):
     def __init__(self, parent=None):

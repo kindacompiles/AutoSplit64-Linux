@@ -152,6 +152,17 @@ def undo(ls_socket) -> None:
     send(ls_socket, "unsplit\r\n")
 
 
+def open_projector(ls_socket, geometry_b64=None) -> None:
+    """Pop out a windowed LiveSplit projector (OBS WebSocket timer only)."""
+    if isinstance(ls_socket, OBSWebSocketTimer):
+        ls_socket.open_projector(geometry_b64)
+        return
+    raise Exception(
+        "Popping out the LiveSplit view requires the OBS WebSocket timer "
+        "method (Settings -> Connection -> Timer Method)."
+    )
+
+
 def split_index(ls_socket):
     # OBS WebSocket cannot read the plugin's split index, so the timer mirrors
     # it locally from the hotkeys it has fired. Return that so the main loop
