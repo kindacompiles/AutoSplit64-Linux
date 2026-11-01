@@ -6,7 +6,6 @@ from ..constants import (
     ABOUT_PATH,
     TITLE,
     GITHUB_REPO,
-    DISCORD_LINK
 )
 from as64core import resource_utils
 
@@ -27,7 +26,6 @@ class AboutDialog(QtWidgets.QDialog):
         self.author_title_lb = QtWidgets.QLabel("Authors:", parent=self)
         self.author_lb = QtWidgets.QLabel(AUTHOR, parent=self)
         self.github_btn = QtWidgets.QPushButton("Open GitHub", parent=self)
-        self.discord_btn = QtWidgets.QPushButton("Join Discord", parent=self)
 
         self.initialize_window()
 
@@ -57,7 +55,6 @@ class AboutDialog(QtWidgets.QDialog):
         self.author_title_lb.setFont(label_font)
         self.author_lb.setFont(label_font)
         self.github_btn.setFont(title_font)
-        self.discord_btn.setFont(title_font)
 
         self.background.move(0, 10)
         # Text block sits in the dark panel on the right; keep it high enough
@@ -67,15 +64,22 @@ class AboutDialog(QtWidgets.QDialog):
         self.ver_lb.move(275, 124)
         self.author_title_lb.move(275, 152)
         self.author_lb.move(275, 172)
-        self.github_btn.move(272, 255)
-        self.discord_btn.move(275, 290)
-        
+        self.github_btn.move(272, 272)
+
         self.github_btn.clicked.connect(
-            lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(f"https://github.com/{GITHUB_REPO}"))
+            lambda: self._open_url(f"https://github.com/{GITHUB_REPO}")
         )
-        self.discord_btn.clicked.connect(
-            lambda: QtGui.QDesktopServices.openUrl(QtCore.QUrl(DISCORD_LINK))
-        )
+
+    def _open_url(self, url):
+        # QDesktopServices.openUrl shells out to xdg-open, which often isn't
+        # found from inside an AppImage; fall back to Python's webbrowser so the
+        # link actually opens.
+        if not QtGui.QDesktopServices.openUrl(QtCore.QUrl(url)):
+            try:
+                import webbrowser
+                webbrowser.open(url)
+            except Exception:
+                pass
 
     def mousePressEvent(self, e):
         self.close()
