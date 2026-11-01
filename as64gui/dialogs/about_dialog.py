@@ -60,11 +60,13 @@ class AboutDialog(QtWidgets.QDialog):
         self.discord_btn.setFont(title_font)
 
         self.background.move(0, 10)
-        self.title_lb.move(275, 96)
-        self.ver_title_lb.move(275, 130)
-        self.ver_lb.move(275, 150)
-        self.author_title_lb.move(275, 180)
-        self.author_lb.move(275, 200)
+        # Text block sits in the dark panel on the right; keep it high enough
+        # that a three-line Authors list (upstream + Linux port) stays inside it.
+        self.title_lb.move(275, 72)
+        self.ver_title_lb.move(275, 104)
+        self.ver_lb.move(275, 124)
+        self.author_title_lb.move(275, 152)
+        self.author_lb.move(275, 172)
         self.github_btn.move(272, 255)
         self.discord_btn.move(275, 290)
         

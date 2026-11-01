@@ -1,4 +1,4 @@
-VERSION = "0.1.4"
+VERSION = "0.1.5"
 TITLE = "AutoSplit 64+"
 AUTHOR = "Davi Be, Synozure\nLinux port:\nKindaCompiles"
 
