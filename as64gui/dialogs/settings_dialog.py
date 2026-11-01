@@ -690,6 +690,16 @@ class ConnectionMenu(BaseMenu):
 
         self.test_btn = QtWidgets.QPushButton("Test Connection")
 
+        # LiveSplit projector pop-out geometry (OBS WebSocket only). OBS can
+        # only apply a geometry when the projector opens -- it cannot report
+        # back or move an open one -- so these set where it opens each time.
+        self.proj_geom_lb = QtWidgets.QLabel("Projector (X, Y, W, H):")
+        self.proj_x_le = QtWidgets.QLineEdit("")
+        self.proj_y_le = QtWidgets.QLineEdit("")
+        self.proj_w_le = QtWidgets.QLineEdit("")
+        self.proj_h_le = QtWidgets.QLineEdit("")
+        self.proj_preview_btn = QtWidgets.QPushButton("Pop Out Preview")
+
         # timer_method combo index -> config value
         self._timer_methods = ["obs_websocket", "livesplit_tcp"]
 
@@ -749,6 +759,27 @@ class ConnectionMenu(BaseMenu):
         self.menu_layout.addWidget(self.test_btn, 10, 1)
         self.test_btn.clicked.connect(self._test_connection)
 
+        self.menu_layout.addWidget(HLine(), 11, 0, 1, 3)
+
+        # Projector geometry row: four small fields in a horizontal strip.
+        self.proj_geom_lb.setAlignment(QtCore.Qt.AlignmentFlag.AlignRight | QtCore.Qt.AlignmentFlag.AlignVCenter)
+        proj_strip = QtWidgets.QWidget()
+        proj_row = QtWidgets.QHBoxLayout(proj_strip)
+        proj_row.setContentsMargins(0, 0, 0, 0)
+        for le, ph in ((self.proj_x_le, "X"), (self.proj_y_le, "Y"),
+                       (self.proj_w_le, "W"), (self.proj_h_le, "H")):
+            le.setValidator(self.int_validator)
+            le.setPlaceholderText(ph)
+            le.setMaximumWidth(50)
+            proj_row.addWidget(le)
+        self.menu_layout.addWidget(self.proj_geom_lb, 12, 0)
+        self.menu_layout.addWidget(proj_strip, 12, 1)
+        self.menu_layout.addWidget(self.proj_preview_btn, 13, 1)
+        self.proj_preview_btn.setToolTip(
+            "Open the LiveSplit projector in OBS at the values above so you can "
+            "see where it lands. Each preview opens a new window.")
+        self.proj_preview_btn.clicked.connect(self._preview_projector)
+
         self.menu_layout.addItem(QtWidgets.QSpacerItem(20, 20, QtWidgets.QSizePolicy.Policy.Minimum, QtWidgets.QSizePolicy.Policy.Expanding), 15, 0)
 
         self.port_le.setValidator(self.int_validator)
@@ -795,11 +826,49 @@ class ConnectionMenu(BaseMenu):
         box.setText(message)
         box.exec()
 
+    def _projector_rect(self):
+        """Current X/Y/W/H field values, or None if any is blank/invalid."""
+        try:
+            return [int(self.proj_x_le.text()), int(self.proj_y_le.text()),
+                    int(self.proj_w_le.text()), int(self.proj_h_le.text())]
+        except (ValueError, TypeError):
+            return None
+
+    def _preview_projector(self):
+        """Open the OBS projector at the values currently in the fields."""
+        from as64core.timer_obsws import OBSWebSocketTimer
+
+        rect = self._projector_rect()
+        if not rect:
+            self._show_result(False, "Enter all four projector values (X, Y, W, H) first.")
+            return
+
+        holder = QtWidgets.QWidget()
+        holder.setGeometry(rect[0], rect[1], rect[2], rect[3])
+        geom_b64 = bytes(holder.saveGeometry().toBase64()).decode("ascii")
+
+        timer = None
+        try:
+            timer = OBSWebSocketTimer(
+                self.obs_host_le.text() or "localhost",
+                int(self.obs_port_le.text() or 4455),
+                self.obs_pw_le.text(),
+            )
+            timer.connect()
+            timer.open_projector(geom_b64)
+        except Exception as e:
+            self._show_result(False, str(e))
+        finally:
+            if timer is not None:
+                timer.disconnect()
+
     def _toggle_method_fields(self):
         """Enable only the fields relevant to the selected timer method."""
         obs = self.timer_method_combo.currentIndex() == 0
         for w in (self.obs_host_lb, self.obs_host_le, self.obs_port_lb, self.obs_port_le,
-                  self.obs_pw_lb, self.obs_pw_le):
+                  self.obs_pw_lb, self.obs_pw_le,
+                  self.proj_geom_lb, self.proj_x_le, self.proj_y_le,
+                  self.proj_w_le, self.proj_h_le, self.proj_preview_btn):
             w.setEnabled(obs)
         for w in (self.ls_mode_lb, self.ls_mode_combo, self.host_lb, self.host_le,
                   self.port_lb, self.port_le, self.ls_pipe_host_lb, self.ls_pipe_host_le):
@@ -821,6 +890,11 @@ class ConnectionMenu(BaseMenu):
         self.ls_pipe_host_le.setText(str(config.get('connection', 'ls_pipe_host')))
         self.ls_mode_combo.setCurrentIndex(config.get('connection', 'ls_connection_type'))
 
+        rect = config.get('connection', 'obs_projector_geometry') or []
+        if len(rect) == 4:
+            for le, v in zip((self.proj_x_le, self.proj_y_le, self.proj_w_le, self.proj_h_le), rect):
+                le.setText(str(v))
+
         self._toggle_method_fields()
 
     def update_preferences(self):
@@ -833,6 +907,10 @@ class ConnectionMenu(BaseMenu):
         config.set_key('connection', 'ls_port', int(self.port_le.text() or 16834))
         config.set_key('connection', 'ls_pipe_host', self.ls_pipe_host_le.text())
         config.set_key("connection", "ls_connection_type", self.ls_mode_combo.currentIndex())
+
+        rect = self._projector_rect()
+        if rect:
+            config.set_key('connection', 'obs_projector_geometry', rect)
 
 
 class ErrorCorrectionMenu(BaseMenu):
