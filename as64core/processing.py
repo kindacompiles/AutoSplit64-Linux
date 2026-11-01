@@ -1,6 +1,8 @@
 import time
 import json
 
+from .resource_utils import rel_to_abs
+
 
 processes = {}
 subprocess_hooks = {}
@@ -34,6 +36,10 @@ class ProcessorGenerator(object):
             p = file_path
 
         file = ProcessorGenerator._open_file(p)
+        if file is None:
+            # Processor file could not be read. Returning None (rather than
+            # crashing on file[...]) lets the caller surface a clear error.
+            return None
         transitions = {}
 
         #
@@ -122,8 +128,11 @@ class ProcessorGenerator(object):
 
     @staticmethod
     def _open_file(file_path):
+        # Processor files (logic/*.processor) are referenced by paths relative
+        # to the application root. Resolve against it so they load regardless of
+        # the current working directory (AppImage/.desktop launch).
         try:
-            with open(file_path) as file:
+            with open(rel_to_abs(file_path)) as file:
                 data = json.load(file)
         except FileNotFoundError:
             return None
@@ -134,7 +143,7 @@ class ProcessorGenerator(object):
 
 
 def generate_processor(file_path):
-    with open(file_path) as file:
+    with open(rel_to_abs(file_path)) as file:
         data = json.load(file)
 
     # Create Processor Instance

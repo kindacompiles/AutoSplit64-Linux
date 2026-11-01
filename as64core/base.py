@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 
 from . import config, livesplit
+from .resource_utils import resource_path
 from .game_capture import GameCapture
 from .model import Model, PredictionInfo
 from .image_utils import is_black, is_white, convert_to_cv2
@@ -77,9 +78,9 @@ class Base(Thread):
 
         # Initialise Prediction Model
         if config.get("model", "legacy"):
-            self._model = Model(MODEL_PATH_LEGACY, MODEL_WIDTH, MODEL_HEIGHT, True)
+            self._model = Model(resource_path(MODEL_PATH_LEGACY), MODEL_WIDTH, MODEL_HEIGHT, True)
         else:
-            self._model = Model(MODEL_PATH, MODEL_WIDTH, MODEL_HEIGHT, False)
+            self._model = Model(resource_path(MODEL_PATH), MODEL_WIDTH, MODEL_HEIGHT, False)
 
         # Main Loop Toggle
         self._running = False

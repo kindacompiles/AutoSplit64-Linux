@@ -83,8 +83,10 @@ def _connect_livesplit(force_tcp=False) -> object:
 
 
 def disconnect(ls_socket) -> None:
-    # Check if connection even exists
-    if ls_socket is False:
+    # Check if connection even exists. It may be None (never connected, e.g.
+    # the run thread errored before connecting) or False (failed connect);
+    # either way there is nothing to close.
+    if ls_socket is False or ls_socket is None:
         return
     if isinstance(ls_socket, OBSWebSocketTimer):
         ls_socket.disconnect()

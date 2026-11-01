@@ -197,11 +197,19 @@ class App(QtWidgets.QMainWindow):
             self.autostarter_active = False
             self.start_btn.set_state("start")
             self.split_list.set_selected_index(0)
-            self.star_count.star_count = self.route.initial_star
-            self.star_count.split_star = self.route.splits[0].star_count
+            if self.route:
+                self.star_count.star_count = self.route.initial_star
+                self.star_count.split_star = self.route.splits[0].star_count
             self.stop.emit()
         elif self.start_btn.get_state() == "start":
-            
+            # A run cannot start without a route loaded -- warn instead of
+            # entering the init state and crashing in the start thread.
+            if not self.route:
+                self.display_error_message(
+                    "Load or create a route before starting.\n\n"
+                    "Right-click -> Open Route, or Edit Route to make one.",
+                    "No Route Loaded")
+                return
             self.start_btn.set_state("init")
             self.start.emit()
 

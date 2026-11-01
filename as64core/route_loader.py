@@ -30,6 +30,9 @@ from .constants import (
 
 
 def load(file_path):
+    # No route selected yet -> nothing to load (callers treat None as "none").
+    if not file_path:
+        return None
     # Routes are referenced by paths that may be relative to the application
     # root (e.g. "routes/foo.as64" stored in config). Resolve against the app
     # root so loading works regardless of the current working directory -- an
@@ -41,7 +44,7 @@ def load(file_path):
             new_data = data[:1] + '"file_path": ' + '"' + file_path + '",' + data[1:]
             decoded_route = RouteDecoder().decode(new_data)
             return decoded_route
-    except FileNotFoundError:
+    except (FileNotFoundError, IsADirectoryError, PermissionError):
         return None
 
 
