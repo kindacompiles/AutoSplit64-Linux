@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=AutoSplit64
+GenericName=SM64 Auto Splitter
+Comment=Image-recognition auto-splitter for Super Mario 64 speedruns
+Exec=AutoSplit64
+Icon=autosplit64
+Categories=Utility;
+Terminal=false

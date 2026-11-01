@@ -1,0 +1,25 @@
+#!/bin/bash
+# AppRun: entry point for the AutoSplit64 AppImage.
+#
+# Points a bundled, relocatable CPython 3.12 at the bundled application tree and
+# makes the bundled Qt/xcb support libraries discoverable. All user-writable
+# state (config, logs, generated templates) goes to XDG dirs under $HOME, not
+# into this read-only mount -- see as64core/paths.py.
+set -e
+
+HERE="$(dirname "$(readlink -f "${0}")")"
+PY="$HERE/usr/python"
+APP="$HERE/usr/app"
+SITE="$PY/lib/python3.12/site-packages"
+
+# Bundled support libs first (libxcb-cursor etc.), then the Qt libs shipped in
+# the PyQt6 wheel, then the Python runtime's own libs.
+export LD_LIBRARY_PATH="$HERE/usr/lib:$SITE/PyQt6/Qt6/lib:$PY/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+# Don't let a user's ~/.local site-packages or stray PYTHON* vars leak into the
+# bundled interpreter and shadow the pinned dependencies.
+export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1
+unset PYTHONPATH PYTHONHOME
+
+exec "$PY/bin/python3" "$APP/AutoSplit64.py" "$@"
