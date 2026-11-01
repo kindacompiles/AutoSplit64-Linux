@@ -153,9 +153,11 @@ def undo(ls_socket) -> None:
 
 
 def split_index(ls_socket):
-    # The OBS WebSocket hotkey path is one-way; no split index is available.
+    # OBS WebSocket cannot read the plugin's split index, so the timer mirrors
+    # it locally from the hotkeys it has fired. Return that so the main loop
+    # advances the route exactly as it does on the TCP path.
     if isinstance(ls_socket, OBSWebSocketTimer):
-        return None
+        return ls_socket.split_index()
     # Check if connection type is pipe or socket
     # If it is a socket:
     if isinstance(ls_socket, socket.socket):

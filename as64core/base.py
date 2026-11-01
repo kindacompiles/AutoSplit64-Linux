@@ -258,9 +258,10 @@ class Base(Thread):
                     self._game_capture.capture()
 
                     raw_index = livesplit.split_index(self._ls_socket)
-                    # OBS WebSocket timer returns None (no split index to read);
-                    # only resync when the timer can report one.
-                    if raw_index is not None:
+                    # TCP reports LiveSplit's real index; the OBS timer reports
+                    # its locally-tracked mirror. Either way, resync the route
+                    # position to it. (False/None means "could not read" -> skip.)
+                    if raw_index is not None and raw_index is not False:
                         ls_index = max(raw_index, 0)
                         if ls_index != self.split_index():
                             self.set_split_index(ls_index)

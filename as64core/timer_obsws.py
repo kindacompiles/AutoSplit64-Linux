@@ -16,9 +16,16 @@ bind any physical keys in OBS. There is no separate "start"; a split on a
 stopped timer starts it (start-or-split), which matches the TCP client's
 ``startorsplit`` behaviour.
 
-Note: the hotkey path is one-way. Unlike the TCP LiveSplit Server protocol,
-OBS WebSocket cannot read the current split index back, so this backend reports
-no split index and the app simply does not resync to external split changes.
+Note: the hotkey path is effectively one-way. Unlike the TCP LiveSplit Server
+protocol, OBS WebSocket cannot read the current split index back from the
+LiveSplit One plugin. Instead this backend tracks its *own* split index,
+mirroring LiveSplit's ``getsplitindex`` semantics by counting the hotkeys it
+fires (-1 = timer not running; the first start-or-split makes it 0; each
+further split/skip increments; undo decrements; reset returns to -1). The app's
+main loop reads this back exactly as it does the TCP index, which is what drives
+the route position forward. The only limitation is that split changes the user
+makes *manually* in LiveSplit (not via AutoSplit64) cannot be observed, so the
+tracked index can drift from LiveSplit if the user splits by hand mid-run.
 """
 
 import time
@@ -42,6 +49,10 @@ class OBSWebSocketTimer(object):
             self._port = 4455
         self._password = password or ""
         self._client = None
+        # Local mirror of LiveSplit's split index (-1 == timer not running),
+        # since the plugin cannot report it back over OBS WebSocket. Updated
+        # only after a hotkey actually fires (see the action methods).
+        self._split_index = -1
 
     # ------------------------------------------------------------------ #
     # Connection
@@ -136,22 +147,35 @@ class OBSWebSocketTimer(object):
                 raise Exception("LiveSplit (OBS) connection lost")
 
     def split(self):
+        # start-or-split: the first press starts the timer (index 0), each
+        # subsequent press advances a segment. Counter is bumped only after the
+        # hotkey actually fires (a raised _trigger leaves the index untouched).
         self._trigger(HOTKEY_SPLIT)
+        self._split_index += 1
 
     def reset(self):
         self._trigger(HOTKEY_RESET)
+        self._split_index = -1
 
     def restart(self):
         # reset, then split starts a fresh run (start-or-split).
         self._trigger(HOTKEY_RESET)
         time.sleep(0.05)
         self._trigger(HOTKEY_SPLIT)
+        self._split_index = 0
 
     def skip(self):
         self._trigger(HOTKEY_SKIP)
+        self._split_index += 1
 
     def undo(self):
         self._trigger(HOTKEY_UNDO)
+        if self._split_index > -1:
+            self._split_index -= 1
 
     def pause(self):
         self._trigger(HOTKEY_PAUSE)
+
+    def split_index(self):
+        """Current split index mirror (-1 when the timer is not running)."""
+        return self._split_index
