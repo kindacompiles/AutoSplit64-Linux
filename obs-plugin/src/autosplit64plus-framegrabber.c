@@ -152,9 +152,11 @@ static obs_properties_t *filter_properties(void *data)
 				"you want AutoSplit64+ to analyze.",
 				OBS_TEXT_INFO);
 
-	// Social links - directly in props instead of a group for horizontal layout
-	obs_properties_add_button(props, "github_link", "📂 GitHub Repository", github_button_clicked);
-	obs_properties_add_button(props, "discord_link", "💬 Join Discord", discord_button_clicked);
+	// Social links - directly in props instead of a group for horizontal layout.
+	// add_button2 (vs the deprecated add_button) matches the 3-arg click
+	// callback signature these handlers already use; priv data is unused (NULL).
+	obs_properties_add_button2(props, "github_link", "📂 GitHub Repository", github_button_clicked, NULL);
+	obs_properties_add_button2(props, "discord_link", "💬 Join Discord", discord_button_clicked, NULL);
 
 	// Version and author info - directly use the constants
 	obs_properties_add_text(props, "version", PLUGIN_VERSION, OBS_TEXT_INFO);
