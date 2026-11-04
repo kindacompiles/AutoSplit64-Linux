@@ -1,3 +1,4 @@
+![License: GPL v3.0](https://img.shields.io/badge/License-GPL%20v3.0-blue.svg)
 <h1 align="center">AutoSplit64+ <sub>(Linux port)</sub></h1>
 <p align="center">
     <img alt="AS64+" title="AS64+" src="resources/gui/icons/as64plus.png" width="256">
